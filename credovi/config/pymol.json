@@ -1,0 +1,288 @@
+{
+    "pymol":
+    {
+        "dashcolor":
+        {
+            "normal": "cyan",
+            "disordered_region": "deepsalmon",
+
+            "xbond":
+            {
+                "vdwclash": "blue",
+                "vdw": "tv_blue",
+                "proximal": "slate"
+            },
+
+            "hbond":
+            {
+                "vdwclash": "red",
+                "vdw": "deepsalmon",
+                "proximal": "salmon"
+            },
+
+            "weakhbond":
+            {
+                "vdwclash": "orange",
+                "vdw": "amber",
+                "proximal": "peach"
+            },
+
+            "metalcomplex":
+            {
+                "covalent": "purple",
+                "vdwclash": "purple",
+                "vdw": "medium_purple"
+            },
+
+            "ionic":
+            {
+                "vdwclash": "yellow",
+                "vdw": "maize",
+                "proximal": "cream"
+            },
+
+            "aromatic":
+            {
+                "vdwclash": "cyan",
+                "vdw": "electric_blue",
+                "proximal": "baby_blue"
+            },
+
+            "hydrophobic":
+            {
+                "vdwclash": "green",
+                "vdw": "emerald",
+                "proximal": "moss_green"
+            },
+
+            "carbonyl":
+            {
+                "vdwclash": "rose",
+                "vdw": "brilliant_rose",
+                "proximal": "thulian_pink"
+            },
+
+            "undefined":
+            {
+                "covalent": "white",
+                "vdwclash": "grey90",
+                "vdw": "grey60",
+                "proximal": "grey30"
+            }
+        },
+
+        "dashradius":
+        {
+            "normal": 0.02,
+
+            "xbond":
+            {
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            },
+
+            "hbond":
+            {
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            },
+
+            "weakhbond":
+            {
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            },
+
+            "metalcomplex":
+            {
+                "covalent": 0.16,
+                "vdwclash": 0.12,
+                "vdw": 0.08
+            },
+
+            "ionic":
+            {
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            },
+
+            "aromatic":
+            {
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            },
+
+            "hydrophobic":
+            {
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            },
+
+            "carbonyl":
+            {
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            },
+
+            "undefined":
+            {
+                "covalent": 0.16,
+                "vdwclash": 0.12,
+                "vdw": 0.08,
+                "proximal": 0.04
+            }
+        },
+
+        "dashgap":
+        {
+            "normal": 0.0,
+
+            "xbond":
+            {
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            },
+
+            "hbond":
+            {
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            },
+
+            "weakhbond":
+            {
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            },
+
+            "metalcomplex":
+            {
+                "covalent": 0.20,
+                "vdwclash": 0.25,
+                "vdw": 0.35
+            },
+
+            "ionic":
+            {
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            },
+
+            "aromatic":
+            {
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            },
+
+            "hydrophobic":
+            {
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            },
+
+            "carbonyl":
+            {
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            },
+
+            "undefined":
+            {
+                "covalent": 0.0,
+                "vdwclash": 0.25,
+                "vdw": 0.35,
+                "proximal": 0.45
+            }
+        },
+
+        "dashlength":
+        {
+            "normal": 1.0,
+
+            "xbond":
+            {
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            },
+
+            "hbond":
+            {
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            },
+
+            "weakhbond":
+            {
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            },
+
+            "metalcomplex":
+            {
+                "covalent": 0.10,
+                "vdwclash": 0.08,
+                "vdw": 0.06
+            },
+
+            "ionic":
+            {
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            },
+
+            "aromatic":
+            {
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            },
+
+            "hydrophobic":
+            {
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            },
+
+            "carbonyl":
+            {
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            },
+
+            "undefined":
+            {
+                "covalent": 1.0,
+                "vdwclash": 0.08,
+                "vdw": 0.06,
+                "proximal": 0.04
+            }
+        },
+
+        "colors":
+        {
+            "carbon": "grey",
+            "non-std-res": "green",
+            "variations": "magenta"
+        }
+    }
+}

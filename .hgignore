@@ -1,0 +1,6 @@
+syntax: glob
+
+*.komodoproject
+*.pyc
+*~
+docs/_*

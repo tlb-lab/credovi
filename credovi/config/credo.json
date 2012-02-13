@@ -1,0 +1,266 @@
+{
+    "cutoffs":
+    {
+        "cutoff": 5.0,
+        "contact type dist max": 4.5,
+        "intramolecular cutoff": 4.5,
+        "RMSD disorder cutoff": 0.25,
+        "max bridged hbond dist": 6.0
+    },
+    
+    "misc":
+    {
+        "ligand min num atoms": 7
+    },
+    
+    "contact types":
+    {
+        "hbond":
+        {
+            "distance": 3.9,
+            "angle rad": 1.57,
+            "angle degree": 90.0
+        },
+
+        "weak hbond":
+        {
+            "distance": 3.6,
+            "angle rad": 2.27,
+            "angle degree": 130.0,
+            "cx angle min rad": 0.52,
+            "cx angle min degree": 30.0,
+            "cx angle max rad": 2.62,
+            "cx angle max degree": 150.0
+        },
+
+        "aromatic":
+        {
+            "distance": 4.0
+        },
+
+        "xbond":
+        {
+            "angle theta 1 rad": 2.09,
+            "angle theta 1 degree": 120.0,
+            "angle theta 2 min rad": 1.22,
+            "angle theta 2 max rad": 2.97,
+            "angle theta 2 min degree": 70.0,
+            "angle theta 2 max degree": 170.0
+        },
+
+        "ionic":
+        {
+            "distance": 4.0
+        },
+
+        "hydrophobic":
+        {
+            "distance": 4.5
+        },
+
+        "carbonyl":
+        {
+            "distance": 3.6
+        },
+
+        "metal":
+        {
+            "distance": 2.8
+        }
+    },
+
+    "atom types":
+    {
+        "hbond acceptor":
+        {
+            "acceptor": "[$([O,S;H1;v2]-[!$(*=[O,N,P,S])]),$([O,S;H0;v2]),$([O,S;-]),$([N&v3;H1,H2]-[!$(*=[O,N,P,S])]),$([N;v3;H0]),$([n,o,s;+0]),F]"
+        },
+
+        "hbond donor":
+        {
+            "donor": "[N!H0v3,N!H0+v4,OH+0,SH+0,nH+0]"
+        },
+
+        "xbond acceptor":
+        {
+            "acceptor": "[#7&!$([nX3,#7v5]),#8,#16&!$([#16v4,#16v6]);!$([*+1,*+2,*+3])]"
+        },
+
+        "xbond donor":
+        {
+            "donor": "[F,Cl,Br,I;X1;$([F,Cl,Br,I]-[#6,#8]);!$([F,Cl,Br,I]C[F,Cl,Br,I])]"
+        },
+
+        "weak hbond acceptor":
+        {
+            "c-x halogens": "[F,Cl,Br,I;X1;$([F,Cl,Br,I]-[#6,#8])]"
+        },
+
+        "weak hbond donor":
+        {
+            "donor": "[#6!H0]"
+        },
+
+        "pos ionisable":
+        {
+            "basic group": "[NH0+0$(*(-[C!$(*=*)])(-[C!$(*=*)])-[C!$(*=*)])!$(*-[a]),NH+0$(*(-[C!$(*=*)])-[C!$(*=*)])!$(*-[a]),NH2+0$(*-[C!$(*=*)])!$(*-[a])]",
+            "imidazole": "n1cncc1",
+            "guanidine": "N=C(-N)-N",
+            "posn": "[#7+]"
+        },
+
+        "neg ionisable":
+        {
+            "acidic group": "[OH,OH0-]-[C,S]=[O,P,S]",
+            "hydroxylic acid": "[OH$(*-[A]=[!#6])]"
+        },
+
+        "hydrophobe":
+        {
+            "hydrophobe": "[#6+0!$(*~[#7,#8,F]),SH0+0v2,s+0,S^3,Cl+0,Br+0,I+0]"
+        },
+
+        "carbonyl oxygen":
+        {
+            "oxygen": "[$([OH0]=[CX3,c])]"
+        },
+
+        "carbonyl carbon":
+        {
+            "carbon": "[$([CX3,c](=[OH0]))]"
+        },
+
+        "aromatic":
+        {
+            "arom_4": "[a;r4,!R1&r3]1:[a;r4,!R1&r3]:[a;r4,!R1&r3]:[a;r4,!R1&r3]:1",
+            "arom_5": "[a;r5,!R1&r4,!R1&r3]1:[a;r5,!R1&r4,!R1&r3]:[a;r5,!R1&r4,!R1&r3]:[a;r5,!R1&r4,!R1&r3]:[a;r5,!R1&r4,!R1&r3]:1",
+            "arom_6": "[a;r6,!R1&r5,!R1&r4,!R1&r3]1:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:1",
+            "arom_7": "[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]1:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:1",
+            "arom_8": "[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]1:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:1"
+        }
+    },
+    
+    "test sets":
+    {
+        "small":
+        [
+            "3IRL", "1O2H", "3DC3", "1BU5", "1Y93", "3NTG", "1I9P", "1XAP", "2BPY",
+            "1SWG", "2FWP", "1PPH", "2ANS", "1SB1", "1IIQ", "2JJN", "1H22", "1P0W",
+            "1DHI", "1E7A", "2RCH", "2RCL", "1LFK", "1T93", "1AFK", "2BJM", "2Q9G",
+            "1MPW", "2NYR", "1FZJ", "1X8D", "2IEO", "1IZH", "1NC1", "2AVM", "1TRD",
+            "3CV9", "2XU6", "3EJE", "1Q6I", "3KIV", "1YKI", "3A51", "1Z4O", "3NYH",
+            "1NC3", "1RJ6", "1QBT", "1PCG", "1MH5", "2HB3", "3INJ", "3KBY", "4DMR",
+            "1WS4", "1NFW", "2H3E", "2I2Z", "1DX6", "1AF2", "3E1F", "1P0X", "2FDY",
+            "1G53", "1S2C", "1W6Y", "1QBQ", "1P1N", "1E66", "1ZC9", "1DZ4", "1BN1",
+            "1Z11", "2BQV", "1FCZ", "1PX3", "2F80", "2FPZ", "3NC5", "2ADU", "1LKK",
+            "1CMJ", "1SUO", "2QBN", "1MU6", "4ER1", "1X9D", "1OIF", "2AQU", "1T4V",
+            "2B07", "3AID", "1DZ9", "1J3J", "1FCY", "229L", "1UWH", "1IS0", "3BF6",
+            "1PBF","2P33"
+        ],
+
+        "large":
+        [
+            "10GS", "11GS", "1A08", "1A0Q", "1A1B", "1A1C", "1A1E", "1A28", "1A30",
+            "1A42", "1A4K", "1A4R", "1A4W", "1A4Y", "1A52", "1A69", "1A7X", "1A8I",
+            "1A94", "1A99", "1A9M", "1AAQ", "1ABF", "1ADD", "1ADL", "1ADO", "1AF2",
+            "1AF6", "1AFK", "1AFL", "1AGA", "1AGM", "1AHW", "1AI4", "1AI5", "1AI7",
+            "1AID", "1AJ6", "1AJ7", "1AJN", "1AJP", "1AJQ", "1AJV", "1AJX", "1AKD",
+            "1ALW", "1AMW", "1APB", "1APV", "1APW", "1AQ1", "1ATL", "1AVN", "1AWI",
+            "1AX0", "1AXZ", "1AZM", "1B05", "1B0H", "1B11", "1B1H", "1B2H", "1B2I",
+            "1B32", "1B38", "1B39", "1B3F", "1B3G", "1B3H", "1B3L", "1B3N", "1B40",
+            "1B46", "1B4H", "1B4Z", "1B51", "1B52", "1B55", "1B58", "1B5H", "1B5I",
+            "1B5J", "1B6H", "1B6J", "1B6K", "1B6L", "1B6M", "1B74", "1B7H", "1B8N",
+            "1B8O", "1B8Y", "1B9J", "1BAI", "1BAP", "1BCD", "1BCU", "1BDQ", "1BGQ",
+            "1BHF",
+            "1BHX", "1BJU", "1BJV", "1BKF", "1BMA", "1BN1", "1BN3", "1BN4", "1BNN", "1BNQ", "1BNT", "1BNU", "1BNV", "1BNW", "1BP0", "1BP3", "1BQ4", "1BR6", "1BRA", "1BRS", "1BSX", "1BU5", "1BU7", "1BUH", "1BV7",
+            "1BV9", "1BVY", "1BWA", "1BWB", "1BX4", "1BXI", "1BXO", "1BXQ", "1BXR", "1BYK", "1BZC", "1BZH", "1BZJ", "1BZY", "1C1P", "1C1R", "1C1U", "1C1V", "1C2F", "1C2G", "1C2I", "1C3X", "1C4S", "1C4U", "1C4V",
+            "1C58", "1C5C", "1C5N", "1C5O", "1C5P", "1C5Q", "1C5S", "1C5T", "1C5X", "1C5Y", "1C5Z", "1C70", "1C83", "1C84", "1C86", "1C87", "1C88", "1C8J", "1CAP", "1CAQ", "1CAR", "1CBW", "1CBX", "1CE5", "1CEA",
+            "1CEB", "1CET", "1CGL", "1CH8", "1CIL", "1CIM", "1CIN", "1CIZ", "1CKP", "1CL6", "1CLA", "1CMJ", "1CMN", "1CNW", "1CNX", "1CNY", "1CP4", "1CPS", "1CPT", "1CT8", "1CTT", "1CTU", "1CVS", "1D09", "1D2E",
+            "1D3D", "1D3P", "1D4K", "1D4L", "1D4P", "1D4Y", "1D5R", "1D6V", "1D6W", "1D7I", "1D7J", "1D9I", "1DAN", "1DB1", "1DD7", "1DET", "1DF8", "1DFJ", "1DFO", "1DHI", "1DHJ", "1DI8", "1DIF", "1DL7", "1DLS",
+            "1DM2", "1DMP", "1DP0", "1DQN", "1DQX", "1DRJ", "1DRK", "1DT6", "1DUD", "1DUV", "1DVF", "1DVX", "1DWC", "1DX5", "1DX6", "1DY4", "1DZ4", "1DZ6", "1DZ8", "1DZ9", "1DZK", "1E1V", "1E1X", "1E2K", "1E2L",
+            "1E3V", "1E4H", "1E5A", "1E66", "1E6Q", "1E6S", "1E71", "1E72", "1E73", "1E7A", "1E7B", "1E7C", "1E9H", "1E9X", "1EA1", "1EC9", "1ECQ", "1ECV", "1EFY", "1EGH", "1EGY", "1EHE", "1EHF", "1EHG", "1EIX",
+            "1EJN", "1ELA", "1ELB", "1ELC", "1ELD", "1ELE", "1ELR", "1ENT", "1EPO", "1ERB", "1ERE", "1ERR", "1ETA", "1ETB", "1EUP", "1EW8", "1EW9", "1EX8", "1EZ9", "1EZQ", "1F0R", "1F0S", "1F0T", "1F0U", "1F24",
+            "1F25", "1F26", "1F2O", "1F2P", "1F3E", "1F4E", "1F4F", "1F4G", "1F4T", "1F4U", "1F4X", "1F57", "1F5K", "1F5L", "1F5Q", "1F86", "1F8A", "1F9G", "1FAG", "1FAH", "1FAO", "1FAP", "1FC2", "1FCH", "1FCM",
+            "1FCX", "1FCY", "1FCZ", "1FD0", "1FDQ", "1FFY", "1FH7", "1FH8", "1FH9", "1FHD", "1FIN", "1FIV", "1FJ4", "1FJ8", "1FJS", "1FKB", "1FKF", "1FKG", "1FKH", "1FKI", "1FKJ", "1FKN", "1FKW", "1FL3", "1FLR",
+            "1FM6", "1FM9", "1FO0", "1FPC", "1FQ1", "1FQ5", "1FQ9", "1FTM", "1FV0", "1FVT", "1FVV", "1FWE", "1FWU", "1FWV", "1FZJ", "1FZK", "1FZM", "1FZO", "1FZQ", "1G1D", "1G2K", "1G2L", "1G2O", "1G30", "1G32",
+            "1G35", "1G36", "1G3B", "1G3C", "1G3D", "1G3E", "1G45", "1G46", "1G48", "1G4J", "1G4O", "1G50", "1G52", "1G53", "1G54", "1G5S", "1G7F", "1G7G", "1G7Q", "1G7V", "1G85", "1G98", "1G9R", "1GA8", "1GAF",
+            "1GAH", "1GAI", "1GAR", "1GC1", "1GCZ", "1GEB", "1GED", "1GEI", "1GEJ", "1GEK", "1GEM", "1GHV", "1GHW", "1GHY", "1GHZ", "1GI1", "1GI4", "1GI6", "1GI7", "1GI8", "1GI9", "1GIH", "1GII", "1GIJ", "1GJ4",
+            "1GJ6", "1GJ7", "1GJ8", "1GJA", "1GJB", "1GJC", "1GJD", "1GJM", "1GNI", "1GNM", "1GNN", "1GNO", "1GNY", "1GPK", "1GPN", "1GRP", "1GT1", "1GTB", "1GU1", "1GVW", "1GVX", "1GWI", "1GWR", "1GWV", "1GY3",
+            "1GYX", "1GYY", "1GZ3", "1GZ4", "1GZ8", "1GZ9", "1GZC", "1H00", "1H01", "1H07", "1H08", "1H0A", "1H0V", "1H0W", "1H1D", "1H1H", "1H1P", "1H1Q", "1H1R", "1H1S", "1H22", "1H23", "1H24", "1H25", "1H26",
+            "1H27", "1H28", "1H2T", "1H46", "1H4W", "1H5Z", "1H6H", "1H7X", "1H9Z", "1HA2", "1HBV", "1HCK", "1HCL", "1HEG", "1HFS", "1HI3", "1HI4", "1HI5", "1HIH", "1HII", "1HK1", "1HK2", "1HK3", "1HK4", "1HK5",
+            "1HLK", "1HLU", "1HMR", "1HMS", "1HMT", "1HN2", "1HNN", "1HOS", "1HP0", "1HPK", "1HPO", "1HPS", "1HPV", "1HPX", "1HQG", "1HSH", "1HUA", "1HVH", "1HVI", "1HVJ", "1HVK", "1HVL", "1HVR", "1HVS", "1HYO",
+            "1HZE", "1I00", "1I18", "1I2W", "1I3O", "1I5R", "1I7Z", "1I80", "1I9L", "1I9M", "1I9N", "1I9O", "1I9P", "1I9Q", "1IAR", "1ICJ", "1ICT", "1IE4", "1IE9", "1IF7", "1IF8", "1IGB", "1IGJ", "1IHI", "1II5",
+            "1IIH", "1IIQ", "1IK4", "1IKT", "1IMX", "1IO7", "1IO8", "1IO9", "1IS0", "1ITU", "1IWI", "1IWJ", "1IWK", "1IY7", "1IZH", "1IZI", "1IZO", "1J01", "1J14", "1J16", "1J17", "1J3J", "1J4R", "1J51", "1J8U",
+            "1JAK", "1JAO", "1JAQ", "1JCK", "1JCX", "1JD0", "1JD5", "1JET", "1JEU", "1JEV", "1JFB", "1JFC", "1JFH", "1JGL", "1JIN", "1JIO", "1JIP", "1JLR", "1JME", "1JMF", "1JMG", "1JMI", "1JN2", "1JN4", "1JOC",
+            "1JPZ", "1JQ8", "1JQ9", "1JQD", "1JQE", "1JQY", "1JR1", "1JST", "1JSU", "1JSV", "1JT1", "1JU6", "1JUJ", "1JVP", "1JWT", "1JXM", "1JYN", "1JYQ", "1JYS", "1JYV", "1JYW", "1JYX", "1JZ2", "1JZ3", "1JZ4",
+            "1JZ5", "1JZ6", "1JZ7", "1JZ8", "1JZS", "1K1I", "1K1J", "1K1L", "1K1M", "1K1N", "1K1Y", "1K21", "1K22", "1K2O", "1K4G", "1K4H", "1K4T", "1K9S", "1KAV", "1KC7", "1KDK", "1KE5", "1KE6", "1KE7", "1KE8",
+            "1KE9", "1KEL", "1KES", "1KI2", "1KJR", "1KLL", "1KMY", "1KNY", "1KOJ", "1KP2", "1KP3", "1KPM", "1KSN", "1KV1", "1KV2", "1KV5", "1KVL", "1KW0", "1KYV", "1KZK", "1KZN", "1L2S", "1L5R", "1L6M", "1L83",
+            "1LAF", "1LAG", "1LAH", "1LBC", "1LBF", "1LEE", "1LF2", "1LF9", "1LFK", "1LG9", "1LGF", "1LGT", "1LGW", "1LHU", "1LI2", "1LI3", "1LI6", "1LJ5", "1LKE", "1LKK", "1LKL", "1LNM", "1LOL", "1LOQ", "1LOR",
+            "1LOX", "1LPG", "1LPK", "1LPZ", "1LRH", "1LRT", "1LTQ", "1LWL", "1LXF", "1LYB", "1LYX", "1LZQ", "1M0N", "1M0O", "1M0Q", "1M13", "1M17", "1M1B", "1M2P", "1M2Q", "1M2R", "1M2X", "1M2Z", "1M48", "1M49",
+            "1M4H", "1M4I", "1M5W", "1M6P", "1M7D", "1M7I", "1M7Y", "1M83", "1M9N", "1MAI", "1ME7", "1ME8", "1MEH", "1MEI", "1MES", "1MET", "1MEU", "1MFA", "1MFD", "1MFI", "1MH5", "1MHW", "1MJ7", "1MJJ", "1MMK",
+            "1MMP", "1MMQ", "1MMR", "1MMT", "1MOQ", "1MPW", "1MQ5", "1MQ6", "1MRL", "1MRN", "1MRS", "1MRW", "1MRX", "1MSM", "1MSN", "1MTR", "1MU6", "1MU8", "1MUE", "1N0W", "1N1M", "1N1T", "1N2V", "1N3I", "1N40",
+            "1N46", "1N4G", "1N4H", "1N4K", "1N51", "1N5R", "1N6B", "1N8V", "1N8Z", "1N97", "1NB9", "1NC1", "1NC3", "1NDV", "1NDW", "1NDY", "1NDZ", "1NF8", "1NFU", "1NFW", "1NFX", "1NFY", "1NH0", "1NHU", "1NHZ",
+            "1NJA", "1NJC", "1NJD", "1NJE", "1NJJ", "1NJS", "1NL9", "1NLI", "1NM6", "1NMQ", "1NNY", "1NO6", "1NOO", "1NQ7", "1NR6", "1NT1", "1NU3", "1NVQ", "1NVR", "1NVS", "1NW4", "1NW5", "1NW7", "1NWL", "1NZ7",
+            "1O01", "1O02", "1O04", "1O0F", "1O0H", "1O0M", "1O0N", "1O0O", "1O2G", "1O2H", "1O2J", "1O2K", "1O2N", "1O2O", "1O2Q", "1O2S", "1O2W", "1O2X", "1O2Z", "1O30", "1O33", "1O36", "1O38", "1O3D", "1O3F",
+            "1O3H", "1O3I", "1O3J", "1O3K", "1O3P", "1O76", "1O7O", "1O86", "1O8B", "1O9D", "1OAI", "1OAR", "1OBA", "1OBX", "1OCQ", "1OD8", "1ODJ", "1ODO", "1ODY", "1OE8", "1OFZ", "1OG2", "1OG5", "1OGG", "1OGU",
+            "1OGX", "1OHR", "1OI9", "1OIF", "1OIQ", "1OIR", "1OIT", "1OIU", "1OIY", "1OKL", "1OKO", "1OKV", "1OKW", "1OL1", "1OL2", "1OLS", "1OLU", "1OLX", "1OM1", "1ONY", "1ONZ", "1ORK", "1OS0", "1OS2", "1OS5",
+            "1OSS", "1OW4", "1OWD", "1OWE", "1OWH", "1OXA", "1OXR", "1OYE", "1OYQ", "1OYT", "1OZ0", "1P0V", "1P0W", "1P0X", "1P19", "1P1N", "1P1O", "1P1Q", "1P28", "1P2A", "1P2Y", "1P5E", "1P62", "1P7R", "1P93",
+            "1P9M", "1PA9", "1PB8", "1PB9", "1PBC", "1PBF", "1PBK", "1PBQ", "1PCG", "1PDZ", "1PF8", "1PFU", "1PGP", "1PHA", "1PHB", "1PHC", "1PHD", "1PHE", "1PHF", "1PHG", "1PK2", "1PKD", "1PKF", "1PKV", "1PKX",
+            "1PME", "1PO5", "1POT", "1PPC", "1PPH", "1PPI", "1PPK", "1PPL", "1PPM", "1PQ2", "1PR1", "1PR5", "1PRO", "1PS3", "1PU7", "1PU8", "1PVN", "1PW2", "1PW6", "1PWY", "1PX3", "1PX4", "1PXI", "1PXJ", "1PXK",
+            "1PXL", "1PXM", "1PXN", "1PXO", "1PXP", "1PY2", "1PYE", "1PYN", "1PZ5", "1PZI", "1PZO", "1PZP", "1Q1C", "1Q1G", "1Q54", "1Q5D", "1Q5E", "1Q63", "1Q65", "1Q66", "1Q6I", "1Q7A", "1Q84", "1Q8T", "1Q8U",
+            "1Q8W", "1Q91", "1Q95", "1QAN", "1QAW", "1QB1", "1QB6", "1QB9", "1QBN", "1QBO", "1QBQ", "1QBR", "1QBS", "1QBT", "1QBU", "1QBV", "1QCA", "1QF0", "1QF1", "1QF2", "1QFT", "1QHC", "1QHS", "1QHY", "1QI0",
+            "1QIN", "1QIW", "1QJI", "1QKA", "1QKB", "1QKT", "1QKU", "1QMQ", "1QMZ", "1QPB", "1QQ9", "1QSC", "1QTI", "1QU2", "1QU3", "1QVN", "1QXK", "1QY1", "1QY2", "1QY5", "1R0P", "1R0X", "1R1H", "1R1J", "1R2R",
+            "1R4W", "1R5Y", "1R6N", "1R78", "1R9L", "1R9O", "1RBO", "1RBP", "1RBW", "1RC8", "1RD4", "1RDI", "1RDJ", "1RDL", "1RDN", "1RDT", "1RE8", "1RE9", "1REJ", "1REK", "1RF9", "1RGK", "1RGL", "1RJ6", "1RNT",
+            "1RO6", "1RO7", "1ROM", "1RP7", "1RPJ", "1RPZ", "1RQL", "1RRC", "1RV1", "1RXC", "1RZX", "1S19", "1S1F", "1S1J", "1S1S", "1S2A", "1S2C", "1S2Q", "1S38", "1S39", "1S5O", "1S63", "1S9P", "1SB1", "1SBG",
+            "1SC8", "1SDT", "1SDU", "1SDV", "1SE6", "1SGU", "1SH9", "1SIV", "1SKX", "1SL3", "1SLD", "1SLE", "1SLG", "1SLN", "1SMI", "1SMJ", "1SQA", "1SQN", "1SQO", "1SQT", "1SR7", "1SRG", "1SRI", "1SSQ", "1STC",
+            "1STR", "1STS", "1SUO", "1SV3", "1SW1", "1SW2", "1SWG", "1SWR", "1SXK", "1SYH", "1SYI", "1SZD", "1T0J", "1T2B", "1T31", "1T32", "1T46", "1T4E", "1T4V", "1T5F", "1T69", "1T7D", "1T7J", "1T85", "1T86",
+            "1T87", "1T88", "1T8A", "1T93", "1T9U", "1TA2", "1TA6", "1TBF", "1TCW", "1TCX", "1TD7", "1TFQ", "1TFT", "1TGM", "1TH6", "1THZ", "1TKB", "1TLP", "1TMN", "1TNG", "1TNH", "1TNI", "1TNJ", "1TNK", "1TNL",
+            "1TOG", "1TOI", "1TOJ", "1TOK", "1TOM", "1TPF", "1TQ4", "1TQN", "1TRD", "1TSL", "1TSY", "1TT2", "1TT6", "1TTM", "1TTV", "1TUF", "1TVO", "1TX7", "1TXR", "1TYR", "1TYS", "1TZ8", "1U13", "1U1B", "1U1W",
+            "1U2Y", "1U33", "1U72", "1UA4", "1UAE", "1UCN", "1UDT", "1UDU", "1UE8", "1UED", "1UGP", "1UGX", "1UHO", "1UI0", "1UJ5", "1UJ6", "1ULG", "1ULW", "1UMJ", "1UMW", "1UOU", "1UPF", "1UR9", "1URC", "1URG",
+            "1URW", "1UTN", "1UTO", "1UTP", "1UTT", "1UTZ", "1UV6", "1UVT", "1UW6", "1UWF", "1UWH", "1UWJ", "1UWT", "1UWU", "1UX7", "1UXA", "1UXB", "1UYU", "1UZ1", "1UZ4", "1UZ8", "1UZE", "1V0K", "1V0L", "1V11",
+            "1V16", "1V1J", "1V1K", "1V1M", "1V2J", "1V2K", "1V2L", "1V2N", "1V2O", "1V2Q", "1V2R", "1V2S", "1V2T", "1V2U", "1V2W", "1V48", "1VFB", "1VFN", "1VJ9", "1VJA", "1VJC", "1VJD", "1VKJ", "1VOT", "1VWL",
+            "1VWN", "1VYF", "1VYG", "1VYQ", "1VYW", "1VYZ", "1VZQ", "1W0E", "1W0F", "1W0G", "1W0X", "1W0Y", "1W1D", "1W1G", "1W2G", "1W3J", "1W3L", "1W4O", "1W4P", "1W4Q", "1W5V", "1W5W", "1W5X", "1W5Y", "1W6F",
+            "1W6R", "1W6Y", "1W76", "1W7G", "1W7X", "1W8C", "1W8L", "1W8M", "1W96", "1W98", "1WC1", "1WCC", "1WCQ", "1WDN", "1WE2", "1WEI", "1WHT", "1WIY", "1WKM", "1WM1", "1WS1", "1WS4", "1WS5", "1WVC", "1WVJ",
+            "1X1Z", "1X38", "1X39", "1X70", "1X8D", "1X8J", "1X8R", "1X8T", "1X8V", "1X9D", "1XAP", "1XBB", "1XBO", "1XCL", "1XD0", "1XD1", "1XFF", "1XGE", "1XGI", "1XGJ", "1XH9", "1XHY", "1XID", "1XJD", "1XK5",
+            "1XK9", "1XKA", "1XKK", "1XOZ", "1XP0", "1XPZ", "1XQ0", "1XQD", "1XT8", "1XZX", "1Y0L", "1Y0X", "1Y1M", "1Y1Z", "1Y20", "1Y2F", "1Y2G", "1Y3G", "1Y3N", "1Y3P", "1Y4L", "1Y6Q", "1Y6R", "1Y8E", "1Y8Y",
+            "1Y91", "1Y93", "1YC1", "1YC4", "1YDA", "1YDB", "1YDD", "1YDK", "1YDR", "1YDS", "1YDT", "1YEI", "1YEJ", "1YFZ", "1YHO", "1YID", "1YKI", "1YKP", "1YKR", "1YQ7", "1YQJ", "1YQO", "1YQP", "1YQY", "1YRC",
+            "1YRD", "1YSG", "1YSI", "1YSN", "1YSW", "1YV5", "1YVM", "1Z10", "1Z11", "1Z1H", "1Z1R", "1Z3T", "1Z3V", "1Z4N", "1Z4O", "1Z6E", "1Z6S", "1Z71", "1Z8O", "1Z8P", "1Z8Q", "1Z95", "1Z9G", "1ZC9", "1ZDP",
+            "1ZGF", "1ZGI", "1ZGY", "1ZHY", "1ZKY", "1ZO4", "1ZO9", "1ZOA", "1ZOE", "1ZOG", "2A0C", "2A4L", "2ADM", "2ADU", "2AFW", "2AFX", "2AJ8", "2AM4", "2AM9", "2AMT", "2ANS", "2AOC", "2AOD", "2AOE", "2AOG",
+            "2AOU", "2AOV", "2AQU", "2ARM", "2AVM", "2AVO", "2AVQ", "2AVS", "2AVV", "2AXI", "2AYR", "2AZ5", "2AZR", "2B07", "2B1V", "2B4L", "2B52", "2B53", "2B54", "2B55", "2B7D", "2BAJ", "2BAK", "2BAL", "2BDM",
+            "2BFQ", "2BFR", "2BHE", "2BHH", "2BIU", "2BJ4", "2BJM", "2BK4", "2BKZ", "2BMH", "2BMK", "2BMZ", "2BO4", "2BOH", "2BOJ", "2BOK", "2BPM", "2BPV", "2BPY", "2BQ7", "2BQV", "2BR1", "2BR6", "2BRB", "2BRM",
+            "2BT9", "2BTR", "2BTS", "2BVD", "2BVJ", "2BXE", "2BXG", "2BXN", "2BYR", "2BYS", "2BZ6", "2BZ9", "2BZA", "2BZZ", "2C02", "2C1P", "2C3J", "2C3L", "2C4G", "2C4S", "2C4V", "2C5N", "2C5O", "2C5V", "2C5X",
+            "2C5Y", "2C68", "2C69", "2C6H", "2C6I", "2C6K", "2C6L", "2C6M", "2C6N", "2C6O", "2C6T", "2C72", "2C73", "2C75", "2C76", "2C7X", "2C80", "2C92", "2C94", "2C97", "2CA0", "2CA8", "2CBU", "2CBV", "2CBZ",
+            "2CC7", "2CCB", "2CCC", "2CCH", "2CCI", "2CD8", "2CEO", "2CEQ", "2CER", "2CES", "2CET", "2CEV", "2CEX", "2CF8", "2CF9", "2CGR", "2CHT", "2CI0", "2CIB", "2CJI", "2CJM", "2CLX", "2COI", "2COJ", "2CP4",
+            "2CPP", "2CSN", "2CTC", "2D09", "2D0E", "2D0K", "2D1N", "2D1O", "2D3U", "2D3Z", "2D9Q", "2DG3", "2DG4", "2DG9", "2DKK", "2DRC", "2DRI", "2DS1", "2DSQ", "2DUA", "2DUV", "2DW7", "2ER6", "2ER9", "2ERJ",
+            "2ERZ", "2EUK", "2EUM", "2EVL", "2EWA", "2EWB", "2EXM", "2EZ7", "2F01", "2F1G", "2F2H", "2F2Q", "2F34", "2F35", "2F5T", "2F6T", "2F7P", "2F80", "2F81", "2F89", "2F8C", "2F8G", "2F8I", "2F8Z", "2F92",
+            "2F94", "2F9K", "2F9Q", "2FAI", "2FDP", "2FDU", "2FDV", "2FDW", "2FDY", "2FE6", "2FER", "2FEU", "2FF1", "2FGI", "2FGU", "2FGV", "2FKE", "2FKF", "2FLB", "2FPZ", "2FQO", "2FQT", "2FQW", "2FQX", "2FQY",
+            "2FR7", "2FRZ", "2FSZ", "2FVD", "2FW6", "2FWP", "2FX6", "2FXU", "2FXV", "2FZC", "2FZG", "2FZK", "2FZZ", "2G00", "2G5U", "2G8R", "2G94", "2G9X", "2GH7", "2GL0", "2GQG", "2GQX", "2GR6", "2GSS", "2GST",
+            "2GSU", "2GV6", "2GV7", "2GVJ", "2GVV", "2GYI", "2GZL", "2H3E", "2H42", "2H4G", "2H4K", "2H4N", "2H5A", "2H6B", "2H6P", "2H6Q", "2H77", "2H79", "2H7Q", "2H7R", "2H7S", "2H9T", "2HB1", "2HB3", "2HDQ",
+            "2HDR", "2HF8", "2HH5", "2HI4", "2HPD", "2HS1", "2HS2", "2HU6", "2HXM", "2HYA", "2HYY", "2I0A", "2I0D", "2I0G", "2I2Z", "2I30", "2I3I", "2I40", "2I80", "2IAG", "2IDW", "2IEO", "2IHQ", "2IJ2", "2IJ3",
+            "2IJ4", "2IJ5", "2IJ7", "2IKO", "2IL2", "2ITO", "2ITY", "2ITZ", "2IUZ", "2IVU", "2IW6", "2IW8", "2IW9", "2IZL", "2J0D", "2J1M", "2J2U", "2J34", "2J47", "2J4I", "2J4S", "2J75", "2J77", "2J78", "2J79",
+            "2J7B", "2J7D", "2J7E", "2J7F", "2J7G", "2J7H", "2J9M", "2JF9", "2JFA", "2JGZ", "2JHF", "2JJN", "2JJO", "2JJP", "2JK7", "2JKJ", "2KXO", "2KYG", "2L1F", "2L1I", "2L2J", "2L2K", "2L3C", "2L3F", "2L3J",
+            "2L4G", "2L4U", "2L8M", "2LBD", "2MAS", "2NNB", "2NNH", "2NNI", "2NNJ", "2NO0", "2NYR", "2NZ5", "2NZA", "2O1Y", "2O21", "2O22", "2O2F", "2O2M", "2O2N", "2OAX", "2OCF", "2OF1", "2OHX", "2OLB", "2ONM",
+            "2ONP", "2OXI", "2OZ7", "2P33", "2P85", "2PCP", "2PG5", "2PG6", "2PG7", "2PK4", "2PRG", "2PTC", "2Q6N", "2Q7I", "2Q7J", "2Q7K", "2Q7L", "2Q9F", "2Q9G", "2QBL", "2QBM", "2QBN", "2QBO", "2QIS", "2QMJ",
+            "2QR2", "2QWB", "2QWC", "2QWD", "2QWE", "2QWF", "2QXS", "2R3F", "2R3G", "2R3H", "2R3I", "2R3J", "2R3K", "2R3L", "2R3M", "2R3N", "2R3O", "2R3P", "2R3Q", "2R3R", "2R64", "2RCH", "2RCL", "2RCM", "2RFB",
+            "2RFC", "2RIW", "2RKM", "2ROM", "2RQR", "2SIM", "2STD", "2TMN", "2TOH", "2TPI", "2USN", "2UUE", "2UUQ", "2UVN", "2UWH", "2UZB", "2UZD", "2UZE", "2UZL", "2UZN", "2UZO", "2V0D", "2V0M", "2V0Z", "2V22",
+            "2V2W", "2VDM", "2VE3", "2VE4", "2VKU", "2VN0", "2VRV", "2VTA", "2VTH", "2VTI", "2VTJ", "2VTL", "2VTM", "2VTN", "2VTO", "2VTP", "2VTQ", "2VTR", "2VTS", "2VTT", "2VU3", "2VV9", "2VZ7", "2VZM", "2W05",
+            "2W06", "2W09", "2W0A", "2W0B", "2W17", "2W1H", "2W3A", "2W8Y", "2WEV", "2WFY", "2WGY", "2WH8", "2WHB", "2WHF", "2WHW", "2WI9", "2WIH", "2WIO", "2WIP", "2WIV", "2WIY", "2WM4", "2WM5", "2WMA", "2WMB",
+            "2WPA", "2WUZ", "2WV2", "2WX2", "2WXV", "2WXY", "2WYT", "2X0Q", "2X1I", "2X1N", "2X2N", "2X5L", "2X5W", "2X7Y", "2X80", "2X9P", "2XAT", "2XBK", "2XC3", "2XFH", "2XKD", "2XKR", "2XL1", "2XM5", "2XMY",
+            "2XN8", "2XNB", "2XSD", "2XTP", "2XTY", "2XU6", "2XUC", "2YPI", "2YXJ", "2Z36", "2Z3T", "2Z3U", "2Z97", "2ZAW", "2ZAX", "2ZBX", "2ZBY", "2ZBZ", "2ZDK", "2ZFS", "2ZFT", "2ZI9", "2ZIA", "2ZQJ", "2ZQX",
+            "2ZUH", "2ZUI", "2ZUJ", "2ZWT", "2ZWU", "3A1L", "3A4G", "3A4H", "3A4Z", "3A50", "3A51", "3A5O", "3A98", "3ABA", "3ABB", "3AID", "3ALO", "3AN2", "3B2R", "3B4X", "3B98", "3B99", "3B9M", "3BA0", "3BDZ",
+            "3BE0", "3BEN", "3BF6", "3BHT", "3BHU", "3BHV", "3BUJ", "3C6G", "3CBD", "3CFQ", "3CLA", "3CLI", "3CLX", "3CM2", "3CM7", "3CP4", "3CPP", "3CR4", "3CR5", "3CS8", "3CS9", "3CV8", "3CV9", "3DDP", "3DDQ",
+            "3DOG", "3DYO", "3DYP", "3DZY", "3E1F", "3E4E", "3E5J", "3E5K", "3E5L", "3E6I", "3EBS", "3EID", "3EIG", "3EJ1", "3EJB", "3EJD", "3EJE", "3EKB", "3EKD", "3EKF", "3EL3", "3EOC", "3EQM", "3ERD", "3ERT",
+            "3EZR", "3EZV", "3F5X", "3FW1", "3FWF", "3FWG", "3FWI", "3FWJ", "3FZ1", "3G0E", "3G0F", "3G1Q", "3G5F", "3G5H", "3G5N", "3G93", "3GCM", "3GK1", "3GK2", "3GK4", "3GPH", "3GSS", "3GST", "3GW9", "3GWS",
+            "3H52", "3H6T", "3HF2", "3HFM", "3HHR", "3HJO", "3HKU", "3HS4", "3HYA", "3IAP", "3IAQ", "3IBD", "3IG7", "3IGG", "3INJ", "3IRI", "3IRJ", "3IRK", "3IRL", "3IVY", "3IW0", "3IW1", "3IW2", "3IYQ", "3IYR",
+            "3IZ4", "3JDW", "3JUS", "3JUV", "3JWQ", "3JYO", "3K1O", "3K6P", "3K74", "3K7P", "3K8G", "3K9V", "3K9Y", "3KBY", "3KE0", "3KE4", "3KFL", "3KGQ", "3KHM", "3KI3", "3KII", "3KIV", "3KM6", "3KM8", "3KMO",
+            "3KNX", "3KOH", "3KOU", "3KSW", "3KW4", "3KX3", "3KX4", "3KX5", "3L1Q", "3L1T", "3L20", "3L4D", "3L61", "3L62", "3L63", "3L79", "3LBD", "3LC4", "3LD6", "3LE6", "3LEO", "3LFN", "3LFQ", "3LFS", "3LN4",
+            "3LTI", "3LU8", "3LXH", "3LXI", "3M4V", "3MDM", "3MDR", "3MDT", "3MDV", "3ME6", "3MGX", "3MVR", "3MY5", "3MZS", "3N3F", "3N93", "3N98", "3NA0", "3NB2", "3NC1", "3NC3", "3NC5", "3NC6", "3NC7", "3NDA",
+            "3NGD", "3NH4", "3NMR", "3NNA", "3NNC", "3NOS", "3NPL", "3NS9", "3NTG", "3NV5", "3NV6", "3NWC", "3NXU", "3NYH", "3OG6", "3OHM", "3OIA", "3OIT", "3OJG", "3OKS", "3OL5", "3OM9", "3OMU", "3OO3", "3OOT",
+            "3OP0", "3OQG", "3OQY", "3P02", "3P0B", "3P0N", "3P0R", "3P0X", "3P0Z", "3P1T", "3P1V", "3P2C", "3P2Q", "3P3L", "3P3O", "3P3V", "3P3X", "3P3Z", "3P41", "3P48", "3P4E", "3P4T", "3P51", "3P52", "3P6K",
+            "3P6M", "3P6N", "3P6O", "3P6P", "3P6Q", "3P6R", "3P6S", "3P6T", "3P6U", "3P6V", "3P6W", "3P6X", "3P9V", "3PAH", "3PCB", "3PCC", "3PCE", "3PCF", "3PCG", "3PCH", "3PCJ", "3PCK", "3PCN", "3PJ8", "3PM0",
+            "3PXF", "3PXQ", "3PXR", "3PXY", "3PXZ", "3PY0", "3PY1", "3QHR", "3QHW", "3R1A", "3R1B", "3S2P", "3STD", "3TLH", "456C", "4CEV", "4CLA", "4CP4", "4CPP", "4DMR", "4ER1", "4ER2", "4FIV", "4HYA", "4PAH",
+            "4RSK", "4STD", "4TIM", "4TLN", "4TMK", "4TMN", "4TS1", "5ABP", "5CEV", "5CP4", "5CPP", "5ER1", "5ER2", "5FIV", "5STD", "5TLN", "5TMN", "5TMP", "5YAS", "6ABP", "6ADH", "6CP4", "6CPA", "6CPP", "6PAH",
+            "6RNT", "6STD", "6TIM", "7ABP", "7CPA", "7CPP", "7HVP", "7STD", "7UPJ", "830C", "8ABP", "8CPA", "8CPP", "966C", "9ABP", "9LYZ"
+        ]
+    }
+}
