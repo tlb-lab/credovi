@@ -1,7 +1,7 @@
 """
 """
 
-from sqlalchemy import Column, Index, Integer, String, Table, Text
+from sqlalchemy import Column, DefaultClause, Float, Index, Integer, String, Table, Text
 from sqlalchemy.sql import func
 
 from credovi.schema import metadata, schema
@@ -17,7 +17,7 @@ prot_fragments = Table('prot_fragments', metadata,
                        Column('fragment_seq', Text),
                        Column('prot_fragment_nterm_id', Integer),
                        Column('prot_fragment_cterm_id', Integer),
-                       Column('completeness', Float(3,2), nullable=False, DefaultClause('0')),
+                       Column('completeness', Float(3,2), DefaultClause('0'), nullable=False),
                        schema=schema)
 
 Index('idx_prot_fragments_chain', prot_fragments.c.chain_id, prot_fragments.c.sstruct_serial, unique=True)
