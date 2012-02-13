@@ -420,6 +420,16 @@ DO $$
         END LOOP;
 END$$;
 
+-- UPDATE PROTEIN-FRAGMENT COMPLETENESS
+UPDATE credo.prot_fragments pf
+   SET completeness = rs.residues / pf.fragment_size::real
+  FROM (
+          SELECT pfr.prot_fragment_id, count(residue_id) as residues
+            FROM credo.prot_fragment_residues pfr
+        GROUP BY pfr.prot_fragment_id
+       ) rs
+ WHERE rs.prot_fragment_id = pf.prot_fragment_id;
+
 
 -- RESIDUE INTERACTION PAIRS
 -- THIS TABLE IS MOSTLY USED TO UPDATE THE INTERFACE/GROOVE RESIDUES TABLES

@@ -17,6 +17,7 @@ prot_fragments = Table('prot_fragments', metadata,
                        Column('fragment_seq', Text),
                        Column('prot_fragment_nterm_id', Integer),
                        Column('prot_fragment_cterm_id', Integer),
+                       Column('completeness', Float(3,2), nullable=False, DefaultClause('0')),
                        schema=schema)
 
 Index('idx_prot_fragments_chain', prot_fragments.c.chain_id, prot_fragments.c.sstruct_serial, unique=True)
@@ -35,7 +36,8 @@ prot_fragment_comments = {
         "fragment_size": "Number of residues that form the protein fragment.",
         "fragment_seq": "Fragment one-letter-code sequence.",
         "prot_fragment_nterm_id": "N-terminal protein fragment neighbour.",
-        "prot_fragment_cterm_id": "C-terminal protein fragment neighbour."
+        "prot_fragment_cterm_id": "C-terminal protein fragment neighbour.",
+        "completeness": "Simple measure to quantify the completeness of the protein fragment: is is the number of its residues that are in CREDO divided by the size of the fragment."
     }
 }
 
