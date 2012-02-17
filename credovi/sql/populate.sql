@@ -277,8 +277,6 @@ LEFT JOIN credo.hetatms h ON h.atom_id = a.atom_id
     WHERE h.atom_id IS NULL;
 
 -- CREATE LIGAND TO BINDING-SITE RESIDUE MAPPING
--- CAN BE SAFELY TRUNCATED DUE TO LACK OF SERIAL COLUMN
-TRUNCATE TABLE credo.binding_sites;
   INSERT INTO credo.binding_sites
   SELECT h.ligand_id, p.residue_id
     FROM credo.hetatms h
@@ -287,6 +285,9 @@ TRUNCATE TABLE credo.binding_sites;
     JOIN credo.peptides p ON p.residue_id = a.residue_id
    WHERE a.biomolecule_id = cs.biomolecule_id 
          AND cs.is_same_entity = false
+         AND a.biomolecule_id > (SELECT MAX(biomolecule_id)
+                                 FROM credo.ligands
+                                 JOIN credo.binding_sites USING(ligand_id))
    UNION
   SELECT h.ligand_id, p.residue_id
     FROM credo.hetatms h
@@ -295,6 +296,9 @@ TRUNCATE TABLE credo.binding_sites;
     JOIN credo.peptides p ON p.residue_id = a.residue_id
    WHERE a.biomolecule_id = cs.biomolecule_id  
          AND cs.is_same_entity = false
+         AND a.biomolecule_id > (SELECT MAX(biomolecule_id)
+                                 FROM credo.ligands
+                                 JOIN credo.binding_sites USING(ligand_id))
 ORDER BY 1,2;
 
 -- CALCULATE RING INTERACTIONS
