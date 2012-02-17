@@ -1,5 +1,4 @@
-"""
-"""
+#!/usr/bin/python
 
 from credovi import app , run
 from credovi.run import base, db, credo, preparepdb, mmcif, credosa
