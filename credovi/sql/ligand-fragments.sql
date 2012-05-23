@@ -1,6 +1,7 @@
 ﻿DROP    TABLE IF EXISTS credo.ligand_fragments;
 CREATE  TABLE credo.ligand_fragments (
         ligand_fragment_id SERIAL NOT NULL,
+        biomolecule_id INTEGER NOT NULL,
         ligand_id INTEGER NOT NULL,
         ligand_component_id INTEGER NOT NULL,
         fragment_id INTEGER NOT NULL,
@@ -70,85 +71,111 @@ CREATE  TABLE credo.ligand_fcd (
 GRANT   SELECT ON TABLE credo.ligand_fcd TO credouser;
 
 -- CREATE A MAPPING BETWEEN LIGANDS AND FRAGMENTS
-INSERT      INTO credo.ligand_fragments(ligand_id, ligand_component_id, fragment_id, hit)
-SELECT      DISTINCT lc.ligand_id, lc.ligand_component_id, fragment_id, hit
-FROM        credo.ligand_components lc
-JOIN        credo.residues r ON r.residue_id = lc.residue_id
-JOIN        pdbchem.chem_comp_fragments cf ON r.res_name = cf.het_id
-JOIN        pdbchem.chem_comp_fragment_atoms cfa ON cfa.chem_comp_fragment_id = cf.chem_comp_fragment_id
-ORDER BY    1,2,3;
+DO $$
+    DECLARE
+        lig_id INTEGER;
+    BEGIN
+        -- LOOP THROUGH ALL LIGANDS THAT DO NOT HAVE CLASHES AND ARE NOT DISORDERED
+        FOR lig_id IN SELECT ligand_id FROM credo.ligands WHERE is_disordered = false AND is_clashing = false ORDER BY 1
+        LOOP
+            -- INSERT LIGAND FRAGMENT ATOMS
+            EXECUTE
+            '
+            INSERT      INTO credo.ligand_fragments(biomolecule_id, ligand_id, ligand_component_id, fragment_id, hit)
+            SELECT      DISTINCT r.biomolecule_id, lc.ligand_id, lc.ligand_component_id, fragment_id, hit
+            FROM        credo.ligand_components lc
+            JOIN        credo.residues r ON r.residue_id = lc.residue_id
+            JOIN        pdbchem.chem_comp_fragments cf ON r.res_name = cf.het_id
+            JOIN        pdbchem.chem_comp_fragment_atoms cfa ON cfa.chem_comp_fragment_id = cf.chem_comp_fragment_id
+            WHERE       lc.ligand_id = $1
+            ORDER BY    1,2,3;
+            ' USING lig_id;
 
+            RAISE NOTICE 'inserted ligand fragments for ligand %', lig_id;
+        END LOOP;
+END$$;
 
 -- CREATE A MAPPING BETWEEN LIGAND FRAGMENTS AND THEIR ATOMS
 DO $$
     DECLARE
+        lig_id INTEGER;
         biomol_id INTEGER;
     BEGIN
-        -- LOOP THROUGH ALL BIOMOLECULES
-        FOR biomol_id IN SELECT biomolecule_id FROM credo.biomolecules ORDER BY 1 
+        -- LOOP THROUGH ALL LIGANDS THAT DO NOT HAVE CLASHES AND ARE NOT DISORDERED
+        FOR lig_id, biomol_id IN   SELECT DISTINCT l.ligand_id, l.biomolecule_id
+                                     FROM credo.ligands l
+                                     JOIN credo.ligand_fragments USING(ligand_id)
+                                 ORDER BY 1
         LOOP
             -- INSERT LIGAND FRAGMENT ATOMS
-            EXECUTE 
+            EXECUTE
             '
-            INSERT      INTO credo.ligand_fragment_atoms(ligand_fragment_id, atom_id)
-            SELECT      DISTINCT lf.ligand_fragment_id, a.atom_id
-            FROM        credo.ligand_fragments lf
-                        -- GET THE LIGAND COMPONENT ATOMS
-            JOIN        credo.ligand_components lc ON lc.ligand_component_id = lf.ligand_component_id
-            JOIN        credo.residues r ON r.residue_id = lc.residue_id
-            JOIN        credo.atoms a on a.residue_id = lc.residue_id
-                        -- LINK THEM TO THE FRAGMENT ATOMS
-            JOIN        pdbchem.chem_comp_fragments cf 
-                        ON cf.het_id = r.res_name AND cf.fragment_id = lf.fragment_id
-            JOIN        pdbchem.chem_comp_fragment_atoms cfa
-                        ON cfa.chem_comp_fragment_id = cf.chem_comp_fragment_id
-                        AND lf.hit = cfa.hit
-                        AND cfa.pdb_name = a.atom_name
-             WHERE      a.biomolecule_id = $1
-            ORDER BY    1,2;
-            ' USING biomol_id;
+               INSERT INTO credo.ligand_fragment_atoms(ligand_fragment_id, atom_id)
+               SELECT DISTINCT lf.ligand_fragment_id, a.atom_id
+                 FROM credo.ligand_fragments lf
+                      -- GET THE LIGAND COMPONENT ATOMS
+                 JOIN credo.ligand_components lc ON lc.ligand_component_id = lf.ligand_component_id
+                 JOIN credo.residues r ON r.residue_id = lc.residue_id
+                 JOIN credo.atoms a on a.residue_id = lc.residue_id
+                      -- LINK THEM TO THE FRAGMENT ATOMS
+                 JOIN pdbchem.chem_comp_fragments cf
+                      ON cf.het_id = r.res_name AND cf.fragment_id = lf.fragment_id
+                 JOIN pdbchem.chem_comp_fragment_atoms cfa
+                      ON cfa.chem_comp_fragment_id = cf.chem_comp_fragment_id
+                      AND lf.hit = cfa.hit
+                      AND cfa.pdb_name = a.atom_name
+                WHERE lc.ligand_id = $1 AND a.biomolecule_id = $2
+             ORDER BY 1,2;
+            ' USING lig_id, biomol_id;
 
-            RAISE NOTICE 'inserted ligand fragments for biomolecule %', biomol_id;
+            RAISE NOTICE 'inserted ligand fragment atoms for ligand %', lig_id;
         END LOOP;
 END$$;
 
 -- FRAGMENT CONTACT DENSITY FOR EACH LIGAND FRAGMENT
-
 DO $$
     DECLARE
+        lig_frag_id INTEGER;
         biomol_id INTEGER;
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES
-        FOR biomol_id IN SELECT biomolecule_id FROM credo.biomolecules ORDER BY 1 
+        FOR lig_frag_id, biomol_id IN   SELECT lf.ligand_fragment_id, lf.biomolecule_id
+                                          FROM credo.ligand_fragments lf
+                                          JOIN credo.ligands USING(ligand_id)
+                                      ORDER BY 1
         LOOP
-            EXECUTE 
+            EXECUTE
                 '
                 INSERT      INTO credo.ligand_fcd(ligand_fragment_id, num_int_atoms,
-                                                  num_covalent, num_vdw_clash, num_vdw, num_proximal, 
-                                                  num_hbond, num_weak_hbond, num_xbond, num_ionic, 
+                                                  num_covalent, num_vdw_clash, num_vdw, num_proximal,
+                                                  num_hbond, num_weak_hbond, num_xbond, num_ionic,
                                                   num_metal_complex, num_aromatic, num_hydrophobic,
                                                   num_carbonyl)
                 WITH        fragment_contacts AS
                             (
-                            SELECT      DISTINCT lfa.ligand_fragment_id,
+                            SELECT      lfa.ligand_fragment_id,
                                         cs.atom_bgn_id as atom_fragment_id, cs.atom_end_id as atom_id, cs.*
                             FROM        credo.ligand_fragment_atoms lfa
                                         -- FRAGMENT ATOM IS BGN
                             JOIN        credo.contacts cs ON cs.atom_bgn_id = lfa.atom_id
-                            WHERE       cs.biomolecule_id = $1
-                                        AND cs.is_secondary = false 
-                                        AND cs.is_same_entity = false 
+                            WHERE       lfa.ligand_fragment_id = $1
+                                        AND cs.biomolecule_id = $2
+                                        AND cs.is_same_entity = false
                                         AND cs.distance <= 4.5
+                                        -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
+                                        AND cs.structural_interaction_type_bm & 56 > 0
                             UNION ALL
-                            SELECT      DISTINCT lfa.ligand_fragment_id,
+                            SELECT      lfa.ligand_fragment_id,
                                         cs.atom_end_id as atom_fragment_id, cs.atom_bgn_id as atom_id, cs.*
                             FROM        credo.ligand_fragment_atoms lfa
                                         -- FRAGMENT ATOM IS END
                             JOIN        credo.contacts cs ON cs.atom_end_id = lfa.atom_id
-                            WHERE       cs.biomolecule_id = $1
-                                        AND cs.is_secondary = false 
-                                        AND cs.is_same_entity = false 
+                            WHERE       lfa.ligand_fragment_id = $1
+                                        AND cs.biomolecule_id = $2
+                                        AND cs.is_same_entity = false
                                         AND cs.distance <= 4.5
+                                        -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
+                                        AND cs.structural_interaction_type_bm & 3584 > 0
                             )
                 SELECT      fc.ligand_fragment_id,
                             COUNT(DISTINCT fc.atom_id) AS num_int_atoms,
@@ -167,101 +194,66 @@ DO $$
                 FROM        fragment_contacts fc
                 GROUP BY    fc.ligand_fragment_id
                 ORDER BY    fc.ligand_fragment_id
-                ' USING biomol_id;
-                
-                RAISE NOTICE 'calculated fragment contact densities for biomolecule %', biomol_id;
+                ' USING lig_frag_id, biomol_id;
+
+                RAISE NOTICE 'calculated fragment contact densities for ligand fragment %', lig_frag_id;
         END LOOP;
 END$$;
 
--- CALCULATE FCD
-UPDATE credo.ligand_fcd f
-   SET fcd = sq.fcd
-  FROM (
-        WITH W AS
-        (
-           SELECT sq.ligand_id, sq.num_hvy_atoms, COUNT(DISTINCT sq.atom_id) AS num_int_atoms
-             FROM (
-                   SELECT DISTINCT l.ligand_id, l.num_hvy_atoms, cs.atom_end_id as atom_id
-                     FROM credo.ligand_fragments lf
-                     JOIN credo.ligands l USING(ligand_id)
-                     JOIN credo.hetatms h USING(ligand_id)
-                     JOIN credo.contacts cs ON cs.atom_bgn_id = h.atom_id
-                    WHERE l.is_incomplete = false
-                          AND cs.is_secondary = false 
-                          AND cs.distance <= 4.5
+-- FRAGMENT CONTACT DENSITY FOR EACH LIGAND FRAGMENT
+DO $$
+    DECLARE
+        lig_id INTEGER;
+        biomol_id INTEGER;
+    BEGIN
+        -- LOOP THROUGH ALL BIOMOLECULES
+        FOR lig_id, biomol_id IN   SELECT DISTINCT lf.ligand_id, lf.biomolecule_id
+                                     FROM credo.ligand_fragments lf
+                                     JOIN credo.ligands USING(ligand_id)
+                                 ORDER BY 1
+        LOOP
+            EXECUTE
+                '
+                UPDATE credo.ligand_fcd f
+                   SET fcd = sq.fcd
+                  FROM (
+                        WITH W AS
+                        (
+                           SELECT sq.ligand_id, COUNT(DISTINCT sq.atom_id) AS num_int_atoms
+                             FROM (
+                                   SELECT DISTINCT h.ligand_id, cs.atom_end_id as atom_id
+                                     FROM credo.hetatms h
+                                     JOIN credo.contacts cs ON cs.atom_bgn_id = h.atom_id
+                                    WHERE cs.distance <= 4.5
+                                          AND cs.is_same_entity = false
+                                          AND h.ligand_id = $1
+                                          AND cs.biomolecule_id = $2
+                                          -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
+                                          AND cs.structural_interaction_type_bm & 56 > 0
+                                    UNION ALL
+                                   SELECT DISTINCT h.ligand_id, cs.atom_bgn_id as atom_id
+                                     FROM credo.hetatms h
+                                     JOIN credo.contacts cs ON cs.atom_end_id = h.atom_id
+                                    WHERE cs.distance <= 4.5
+                                          AND cs.is_same_entity = false
+                                          AND h.ligand_id = $1
+                                          AND cs.biomolecule_id = $2
+                                          -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
+                                          AND cs.structural_interaction_type_bm & 3584 > 0
+                                  ) sq
+                         GROUP BY sq.ligand_id
+                        )
+                        SELECT fc.ligand_fragment_id, fc.num_int_atoms, f.num_hvy_atoms, W.num_int_atoms, l.num_hvy_atoms,
+                               (fc.num_int_atoms / f.num_hvy_atoms::float) / (w.num_int_atoms / l.num_hvy_atoms::float) as fcd
+                          FROM W
+                          JOIN credo.ligand_fragments lf ON W.ligand_id = lf.ligand_id
+                          JOIN credo.ligands l ON W.ligand_id = l.ligand_id
+                          JOIN pdbchem.fragments f ON f.fragment_id = lf.fragment_id
+                          JOIN credo.ligand_fcd fc ON lf.ligand_fragment_id = fc.ligand_fragment_id
+                       ) sq
+                 WHERE sq.ligand_fragment_id = f.ligand_fragment_id;
+                ' USING lig_id, biomol_id;
 
-                    UNION
-                   SELECT DISTINCT l.ligand_id, l.num_hvy_atoms, cs.atom_bgn_id
-                     FROM credo.ligand_fragments lf
-                     JOIN credo.ligands l USING(ligand_id)
-                     JOIN credo.hetatms h USING(ligand_id)
-                     JOIN credo.contacts cs ON cs.atom_end_id = h.atom_id
-                    WHERE l.is_incomplete = false
-                          AND cs.is_secondary = false AND cs.distance <= 4.5
-                  ) sq
-         GROUP BY sq.ligand_id, sq.num_hvy_atoms
-        )
-        SELECT      fc.ligand_fragment_id, fc.num_int_atoms, f.num_atoms, W.num_int_atoms, W.num_hvy_atoms,
-                    (fc.num_int_atoms / f.num_atoms::float) / (w.num_int_atoms / W.num_hvy_atoms::float) as fcd
-        FROM        W
-        JOIN        credo.ligand_fragments lf ON W.ligand_id = lf.ligand_id
-        JOIN        pdbchem.fragments f ON f.fragment_id = lf.fragment_id
-        JOIN        credo.ligand_fcd fc ON lf.ligand_fragment_id = fc.ligand_fragment_id
-        ) sq
- WHERE sq.ligand_fragment_id = f.ligand_fragment_id;
-
-/*
--- UPDATE THE USR ENVIRONMENT MOMENTS FOR EACH LIGAND FRAGMENT
-DROP        TABLE IF EXISTS tmp_ligand_fragment_env;
-CREATE      TEMP TABLE tmp_ligand_fragment_env AS
-SELECT      DISTINCT lfa.ligand_fragment_id, a2.coords as atoms,
-            CASE WHEN a2.is_hydrophobe THEN a2.coords ELSE NULL END as hydrophobes,
-            CASE WHEN a2.is_aromatic THEN a2.coords ELSE NULL END as aromatics,
-            CASE WHEN a2.is_acceptor THEN a2.coords ELSE NULL END as acceptors,
-            CASE WHEN a2.is_donor THEN a2.coords ELSE NULL END as donors
-FROM        credo.ligand_fragment_atoms lfa
-JOIN        credo.ligand_fragments USING(ligand_fragment_id)
-JOIN        pdbchem.fragments f USING(fragment_id)
-JOIN        credo.contacts cs ON cs.atom_end_id = lfa.atom_id
-JOIN        credo.atoms a1 ON a1.atom_id = cs.atom_bgn_id
-            -- GET ALL RESIDUE ATOMS
-JOIN        credo.atoms a2 USING(residue_id)
-WHERE       -- ONLY KEEP ENVIRONMENT MOMENTS FOR FRAGMENTS WITH AT LEAST 5 ATOMS
-            f.num_atoms >= 5
-UNION
-SELECT      DISTINCT lfa.ligand_fragment_id, a2.coords as atoms,
-            CASE WHEN a2.is_hydrophobe THEN a2.coords ELSE NULL END as hydrophobes,
-            CASE WHEN a2.is_aromatic THEN a2.coords ELSE NULL END as aromatics,
-            CASE WHEN a2.is_acceptor THEN a2.coords ELSE NULL END as acceptors,
-            CASE WHEN a2.is_donor THEN a2.coords ELSE NULL END as donors
-FROM        credo.ligand_fragment_atoms lfa
-JOIN        credo.ligand_fragments USING(ligand_fragment_id)
-JOIN        pdbchem.fragments f USING(fragment_id)
-JOIN        credo.contacts cs ON cs.atom_bgn_id = lfa.atom_id
-JOIN        credo.atoms a1 ON a1.atom_id = cs.atom_end_id
-            -- GET ALL RESIDUE ATOMS
-JOIN        credo.atoms a2 USING(residue_id)
-WHERE       -- ONLY KEEP ENVIRONMENT MOMENTS FOR FRAGMENTS WITH AT LEAST 5 ATOMS
-            f.num_atoms >= 5;
-
--- CREATE INDEX FOR THE TEMP TABLE
-CREATE  INDEX idx_tmp_ligand_fragment_env ON tmp_ligand_fragment_env USING btree (ligand_fragment_id);
-
-UPDATE      credo.ligand_fragments lf
-SET         usr_moments_env = sq.usr_moments_env
-FROM        (
-            SELECT      ligand_fragment_id,
-                        coords_to_usr(ARRAY_AGG(atoms) || ARRAY_AGG(hydrophobes) || ARRAY_AGG(aromatics) ||
-                                      ARRAY_AGG(acceptors) || ARRAY_AGG(donors)) as usr_moments_env
-            FROM        tmp_ligand_fragment_env
-            GROUP BY    ligand_fragment_id
-                        -- ONLY KEEP ENVIRONMENTS WITH AT LEAST 10 ATOMS
-            HAVING      ARRAY_LENGTH(ARRAY_AGG(atoms),1) >= 10
-            ) sq
-WHERE       lf.ligand_fragment_id = sq.ligand_fragment_id;
-
--- UPDATE USR SPACE CUBE FOR USR ENVIRONMENT MOMENTS
-UPDATE      credo.ligand_fragments lf
-SET         usr_space = cube(lf.usr_moments_env[1:12]);
-*/
-
+                RAISE NOTICE 'updated fragment contact densities for all fragments of ligand %', lig_id;
+        END LOOP;
+END$$;

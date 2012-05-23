@@ -7,11 +7,12 @@ will hold 5000 biomolecules.
 from sqlalchemy import Boolean, CheckConstraint, Column, DDL, Float, Index, Integer, Table, DefaultClause
 from sqlalchemy.event import listen
 
+from credovi import app
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import comment_on_table_elements
 
-CURRENT_BIOMOL_MAX = 150000
-CONTACTS_PARTITION_SIZE = 5000
+CURRENT_BIOMOL_MAX      = app.config.get('schema','current_biomol_max')
+CONTACTS_PARTITION_SIZE = app.config.get('schema','contacts_partition_size')
 
 CONTACTS_INS_RULE_DDL   = """
                             CREATE OR REPLACE RULE {rule} AS
@@ -19,7 +20,7 @@ CONTACTS_INS_RULE_DDL   = """
                              WHERE (biomolecule_id > {part_bound_low} AND biomolecule_id <= {part_bound_high})
                         DO INSTEAD INSERT INTO {schema}.{table} VALUES (NEW.*)
                         """
-                        
+
 # master table
 contacts = Table('contacts', metadata,
                  Column('contact_id', Integer, primary_key=True, nullable=False),
@@ -80,8 +81,8 @@ partitions = range(0, CURRENT_BIOMOL_MAX+CONTACTS_PARTITION_SIZE, CONTACTS_PARTI
 
 for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
     tablename = 'contacts_biomol_le_{0}'.format(part_bound_high)
-    rulename = tablename + '_insert'        
-    
+    rulename = tablename + '_insert'
+
     partition = Table(tablename, metadata,
                       Column('contact_id', Integer, primary_key=True, nullable=False),
                       Column('biomolecule_id', Integer, nullable=False),
@@ -106,10 +107,10 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
                       Column('is_carbonyl', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       CheckConstraint("biomolecule_id > {0} AND biomolecule_id <= {1}".format(part_bound_low, part_bound_high)),
                       schema=schema)
-    
+
     Index('idx_{0}_biomolecule_id'.format(tablename), partition.c.biomolecule_id)
-    Index('idx_{0}_atom_bgn_id'.format(tablename), partition.c.atom_bgn_id, partition.c.atom_end_id, unique=True)
-    Index('idx_{0}_atom_end_id'.format(tablename), partition.c.atom_end_id, partition.c.atom_bgn_id, unique=True)
+    Index('idx_{0}_atom_bgn_id'.format(tablename), partition.c.atom_bgn_id)
+    Index('idx_{0}_atom_end_id'.format(tablename), partition.c.atom_end_id)
 
     # neccessary to drop tables with sqlalchemy
     partition.add_is_dependent_on(contacts)
@@ -122,10 +123,10 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
     listen(metadata, "after_create",
            DDL(CONTACTS_INS_RULE_DDL.format(schema=schema, table=tablename,
                                             rule=rulename, part_bound_low=part_bound_low,
-                                            part_bound_high=part_bound_high)))          
-    
+                                            part_bound_high=part_bound_high)))
+
     # drop the rules on the master table because they depend on the partitions
     listen(partition, "before_drop",
-       DDL("DROP RULE {rule} ON {schema}.contacts".format(schema=schema, rule=rulename)))
-    
+       DDL("DROP RULE IF EXISTS {rule} ON {schema}.contacts".format(schema=schema, rule=rulename)))
+
     comment_on_table_elements(partition, comments)

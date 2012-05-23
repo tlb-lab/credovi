@@ -1,5 +1,6 @@
 from .raw import (raw_atoms, raw_binding_site_atom_surface_areas, raw_contacts,
-                  raw_interface_atom_surface_areas, raw_ligands, raw_rings)
+                  raw_interface_atom_surface_areas, raw_ligands, raw_rings,
+                  raw_chains)
 from .structures import structures
 from .biomolecules import biomolecules
 from .chains import chains, polypeptides, oligonucleotides, polysaccharides

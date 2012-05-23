@@ -53,6 +53,11 @@ def generate_biomolecule(structure, pisa):
         for assembly_serial in pisa[set_serial]:
             biomolecule = OEMol()
 
+            # dictionary to keep track of the transformations that were executed
+            # on newly created chains
+            biomol_trans_map = {}
+
+            #
             cur_chain_id = None
 
             # list of all possible new pdb chain identifiers ordered by priority (
@@ -127,6 +132,10 @@ def generate_biomolecule(structure, pisa):
                         # get new chain identifier, try to keep original
                         cur_chain_id = new_chain_ids.pop(0)
 
+                        # keep track of the transformations that were performed
+                        # on this chain
+                        biomol_trans_mapping[cur_chain_id] = details
+
                         # debug information about the new pdb chain id that was created
                         app.log.debug(msg + "to generate chain {0}.".format(cur_chain_id))
 
@@ -149,8 +158,13 @@ def generate_biomolecule(structure, pisa):
                                 new_entity_serial = atom.GetIntData('entity_serial') + struct_max_entity_serial * operation_serial
                                 atom.SetIntData('entity_serial', new_entity_serial)
 
+                    #
+
+
                     # add newly created chain to biomolecule
                     OEAddMols(biomolecule, entity)
+
+            #
 
             # remove water molecules that clash in quaternary assembly
             remove_water_clashes(biomolecule)
@@ -168,7 +182,7 @@ def generate_biomolecule(structure, pisa):
 
             biomolecule.SetTitle(pdbcode)
             biomolecule.SetIntData('assembly_serial', assembly_serial)
-            
+
             # identify alternate location groups in biomolecule and assign new alternate location codes
             # or remove completely superimposed residues
             set_alternate_locations(biomolecule)
@@ -345,7 +359,7 @@ def set_alternate_locations(structure):
 
                     app.log.debug("alternate location {0} set for old location {1} "
                                   "of residue {2}".format(altloc_new, altloc, residue))
-                    
+
             app.log.debug("PDB Chain ID set to {0} for alternate location group"
                           .format(pdb_chain_id_ref))
 

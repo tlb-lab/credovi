@@ -8,7 +8,8 @@ from operator import itemgetter
 from sqlalchemy.sql import text
 
 from credovi.lib.openeye import OEFloatArray
-from credovi import app, engine
+from credovi import app
+from credovi.schema import engine
 
 def get_credo_pdbs(generator=True):
     """
@@ -17,9 +18,9 @@ def get_credo_pdbs(generator=True):
     """
     statement = text("SELECT pdb FROM credo.structures ORDER BY 1")
     result = engine.execute(statement).fetchall()
-    
+
     if generator: return (row.pdb for row in result)
-    
+
     return result
 
 def get_pdb_polymer_info(pdb):
@@ -65,7 +66,7 @@ def get_pdb_polymer_info(pdb):
 
 def get_pdb_ligand_info(pdb):
     """
-    """  
+    """
     SQL = text("""
                 SELECT      pdb_chain_id, het_id, res_num, ins_code, 2 as entity_type_bm
                 FROM        pdb.ligands
@@ -83,7 +84,8 @@ def get_pdb_ligand_info(pdb):
     ligands = (((row.pdb_chain_id, row.het_id, row.res_num, row.ins_code), row.entity_type_bm) for row in result)
     ligands = dict(ligands)
 
-    app.log.debug("structure contains {0} ligands according to mmCIF:".format(len(ligands)))
+    app.log.debug("structure contains {0} ligands according to mmCIF:"
+                  .format(len(ligands)))
 
     for tup in ligands.keys():
         app.log.debug("    {0} {1} {2}".format(*tup))
@@ -111,7 +113,8 @@ def get_pdb_sstruct_info(pdb):
         # create a key/value pair in the form pdb id => sstruct serial
         sstruct_info[row[:-1]] = row[-1]
 
-    app.log.debug("{0} protein fragments were identified through SIFTS.".format(len(sstruct_info)))
+    app.log.debug("{0} protein fragments were identified through SIFTS."
+                  .format(len(sstruct_info)))
 
     return sstruct_info
 
@@ -184,7 +187,7 @@ def get_pisa_num_assemblies(pdb):
     """
     """
     statement = text("""
-                    SELECT      num_assemblies, a.is_stable
+                    SELECT      DISTINCT num_assemblies, a.is_stable
                     FROM        pisa.entries e
                     LEFT JOIN   pisa.sets s ON s.entry_id = e.entry_id
                     LEFT JOIN   pisa.assemblies a ON a.set_id = s.set_id

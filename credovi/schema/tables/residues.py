@@ -11,14 +11,6 @@ from sqlalchemy.event import listen
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
 
-# template for residue insert rule
-RESIDUE_INS_RULE_DDL    = """
-                            CREATE OR REPLACE RULE {rule} AS
-                                ON INSERT TO {schema}.residues
-                             WHERE (entity_type_bm & {entity_type} > 0)
-                        DO INSTEAD INSERT INTO {schema}.{table} VALUES (NEW.*)
-                        """
-
 # residues master table (won't be empty!)
 residues = Table('residues', metadata,
                  Column('residue_id', Integer, primary_key=True),
@@ -80,7 +72,7 @@ peptides = Table('peptides', metadata,
                  Column('is_non_std', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                  Column('is_modified', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                  Column('is_mutated', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                 CheckConstraint("entity_type_bm & 32 > 0"),
+                 CheckConstraint("entity_type_bm = 32 OR entity_type_bm = 34"),
                  schema=schema)
 
 Index('idx_peptides_biomolecule_id', peptides.c.biomolecule_id)
@@ -99,12 +91,16 @@ listen(peptides, "after_create",
 
 # DDL to create an insert rule on the master table
 listen(metadata, "after_create",
-       DDL(RESIDUE_INS_RULE_DDL.format(schema=schema, table='peptides',
-                                       rule='peptide_insert_rule', entity_type=32)))
+       DDL("""
+               CREATE OR REPLACE RULE peptide_insert_rule AS
+                   ON INSERT TO {schema}.residues
+                WHERE (entity_type_bm = 32 OR entity_type_bm = 34)
+           DO INSTEAD INSERT INTO {schema}.peptides VALUES (NEW.*)
+           """.format(schema=schema)))
 
 # drop the rule on the master table because it depends on this table
 listen(peptides, "before_drop",
-       DDL("DROP RULE {rule} ON {schema}.residues".format(schema=schema, rule='peptide_insert_rule')))
+       DDL("DROP RULE IF EXISTS {rule} ON {schema}.residues".format(schema=schema, rule='peptide_insert_rule')))
 
 # add table comments
 peptide_comments = {
@@ -146,7 +142,7 @@ nucleotides = Table('nucleotides', metadata,
                     Column('entity_type_bm', Integer, nullable=False),
                     Column('is_disordered', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                     Column('is_incomplete', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                    CheckConstraint("entity_type_bm & 24 > 0"),
+                    CheckConstraint("entity_type_bm = 8 OR entity_type_bm = 16 OR entity_type_bm = 24"),
                     schema=schema)
 
 Index('idx_nucleotides_biomolecule_id', nucleotides.c.biomolecule_id)
@@ -162,12 +158,16 @@ listen(nucleotides, "after_create",
 
 # ddl to create an insert rule on the master table
 listen(metadata, "after_create",
-       DDL(RESIDUE_INS_RULE_DDL.format(schema=schema, table='nucleotides',
-                                       rule='nucleotide_insert_rule', entity_type=24))) # 8 + 16
+       DDL("""
+               CREATE OR REPLACE RULE nucleotide_insert_rule AS
+                   ON INSERT TO {schema}.residues
+                WHERE (entity_type_bm = 8 OR entity_type_bm = 16 OR entity_type_bm = 24)
+           DO INSTEAD INSERT INTO {schema}.nucleotides VALUES (NEW.*)
+           """.format(schema=schema)))
 
 # drop the rule on the master table because it depends on this table
 listen(nucleotides, "before_drop",
-       DDL("DROP RULE {rule} ON {schema}.residues".format(schema=schema, rule='nucleotide_insert_rule')))
+       DDL("DROP RULE IF EXISTS {rule} ON {schema}.residues".format(schema=schema, rule='nucleotide_insert_rule')))
 
 nucleotide_comments = {
     "table": "Stores all residues that are part of a oligonucleotide sequence.",
@@ -200,7 +200,7 @@ saccharides = Table('saccharides', metadata,
                     Column('entity_type_bm', Integer, nullable=False),
                     Column('is_disordered', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                     Column('is_incomplete', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                    CheckConstraint("entity_type_bm & 4 > 0"),
+                    CheckConstraint("entity_type_bm = 4"),
                     schema=schema)
 
 Index('idx_saccharides_biomolecule_id', saccharides.c.biomolecule_id)
@@ -216,12 +216,16 @@ listen(saccharides, "after_create",
 
 # DDL TO CREATE AN INSERT RULE ON THE MASTER TABLE
 listen(metadata, "after_create",
-       DDL(RESIDUE_INS_RULE_DDL.format(schema=schema, table='saccharides',
-                                       rule='saccharide_insert_rule', entity_type=4)))
+       DDL("""
+               CREATE OR REPLACE RULE saccharide_insert_rule AS
+                   ON INSERT TO {schema}.residues
+                WHERE (entity_type_bm = 4)
+           DO INSTEAD INSERT INTO {schema}.saccharides VALUES (NEW.*)
+           """.format(schema=schema)))
 
 # DROP THE RULE ON THE MASTER TABLE BECAUSE IT DEPENDS ON THIS TABLE
 listen(saccharides, "before_drop",
-       DDL("DROP RULE {rule} ON {schema}.residues".format(schema=schema,
+       DDL("DROP RULE IF EXISTS {rule} ON {schema}.residues".format(schema=schema,
                                                           rule='saccharide_insert_rule')))
 
 saccharide_comments = {
@@ -248,7 +252,7 @@ residue_interaction_pairs = Table('residue_interaction_pairs', metadata,
                                   Column('biomolecule_id', Integer, nullable=False),
                                   Column('residue_bgn_id', Integer, nullable=False),
                                   Column('residue_end_id', Integer, nullable=False),
-                                  Column('structural_interaction_type', Integer, DefaultClause('0'), nullable=False),
+                                  Column('structural_interaction_type_bm', Integer, DefaultClause('0'), nullable=False),
                                   UniqueConstraint('residue_bgn_id', 'residue_end_id', name='residue_interaction_pairs_unique_interaction'),
                                   schema=schema)
 
@@ -260,11 +264,11 @@ residue_interaction_pair_comments = {
     "table": "Contains all the residue pairs that are interacting with each other. This table is used as a shortcut to update interface/groove residues in particular.",
     "columns":
     {
-        "biomolecule_id": "Primary key of the parent biomolecule.",                
+        "biomolecule_id": "Primary key of the parent biomolecule.",
         "residue_bgn_id": "Primary key of the residue.",
         "residue_end_id": "Primary key of the residue.",
         "structural_interaction_type": "Sum of the entity type bitmasks of the atom residues, e.g. 64 for protein-protein."
     }
-}      
+}
 
 comment_on_table_elements(residue_interaction_pairs, residue_interaction_pair_comments)

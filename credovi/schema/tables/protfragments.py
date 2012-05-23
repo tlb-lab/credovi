@@ -9,6 +9,7 @@ from credovi.util.sqlalchemy import PTree, comment_on_table_elements
 
 prot_fragments = Table('prot_fragments', metadata,
                        Column('prot_fragment_id', Integer, primary_key=True),
+                       Column('biomolecule_id', Integer, nullable=False),
                        Column('chain_id', Integer, nullable=False),
                        Column('path', PTree),
                        Column('sstruct_serial', Integer),
@@ -20,6 +21,7 @@ prot_fragments = Table('prot_fragments', metadata,
                        Column('completeness', Float(3,2), DefaultClause('0'), nullable=False),
                        schema=schema)
 
+Index('idx_prot_fragments_biomolecule_id', prot_fragments.c.biomolecule_id)
 Index('idx_prot_fragments_chain', prot_fragments.c.chain_id, prot_fragments.c.sstruct_serial, unique=True)
 Index('idx_prot_fragments_path', prot_fragments.c.path, postgresql_using='gist')
 Index('idx_prot_fragments_seq', prot_fragments.c.fragment_seq, postgresql_where=func.length(prot_fragments.c.fragment_seq) >= 5)
@@ -29,6 +31,7 @@ prot_fragment_comments = {
     "columns":
     {
         "prot_fragment_id": "Primary key of the protein fragment.",
+        "biomolecule_id": "Primary key of the biomolecule the secondary structure fragment belongs to.",
         "chain_id": "Primary key of the chain the secondary structure belongs to.",
         "path": "ptree",
         "sstruct_serial": "Secondary structure serial number inside the chain.",

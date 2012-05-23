@@ -386,11 +386,11 @@ def identify_surface_atoms(structure):
         entity = OEGraphMol()
         OESubsetMol(entity, structure, entitypred, False, False, atom_map)
 
+        # map entity subsetmol surface atoms back to original structure
+        entity_atom_map = dict(transform_atom_map(atom_map))
+
         # not necessary for single atom entities
         if entity.NumAtoms() > 1:
-
-            # map entity subsetmol surface atoms back to original structure
-            entity_atom_map = dict(transform_atom_map(atom_map))
 
             # adjust the grid spacing to the size of the entity
             if entity.NumAtoms() > 70: resolution = 1.0
@@ -403,9 +403,6 @@ def identify_surface_atoms(structure):
             vertice_map = OEUIntArray(surface.GetNumVertices())
             surface.GetAtoms(vertice_map)
             surface_atoms = set(vertice_map) # get a non-redundant set of atoms
-
-            # map entity subsetmol surface atoms back to original structure
-            entity_atom_map = dict(transform_atom_map(atom_map))
 
             # iterate through all surface atoms of the entity, trace them back to the
             # original structure and label them
@@ -420,7 +417,12 @@ def identify_surface_atoms(structure):
 
         # label single atom entities as solvent-exposed
         else:
-            for atom in entity.GetAtoms(): atom.SetIntData('is_exposed', 1)
+            for atom in entity.GetAtoms():
+                structure_atom_idx = entity_atom_map[atom.GetIdx()]
+                structure_atom = structure.GetAtom(OEHasAtomIdx(structure_atom_idx))
+                
+                # label the entity atom as being exposed to the surface
+                structure_atom.SetIntData('is_exposed', 1)
 
 def parse_header(structure):
     """

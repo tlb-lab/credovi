@@ -4,9 +4,23 @@ for each PDB file.
 """
 
 from sqlalchemy import Boolean, Column, DefaultClause, Float, Index, Integer, String, Table, Text
+from sqlalchemy.dialects.postgresql import ARRAY, DOUBLE_PRECISION
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import Vector3D
+
+# RAW CHAINS
+raw_chains = Table('raw_chains', metadata,
+                   Column('pdb', String(4), nullable=False, primary_key=True),
+                   Column('assembly_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
+                   Column('entity_serial', Integer, nullable=False, autoincrement=False, primary_key=True),
+                   Column('pdb_chain_id', String(1), nullable=False),
+                   Column('pdb_chain_asu_id', String(1), nullable=False),
+                   Column('chain_type', String(50)),
+                   Column('rotation', ARRAY(DOUBLE_PRECISION)),
+                   Column('translation', ARRAY(DOUBLE_PRECISION)),
+                   Column('is_at_identity', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                   schema=schema, prefixes=['unlogged'])
 
 # RAW LIGANDS
 raw_ligands = Table('raw_ligands', metadata,
@@ -80,9 +94,9 @@ raw_contacts = Table('raw_contacts', metadata,
                      Column('is_aromatic', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_hydrophobic', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_carbonyl', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                     schema=schema, prefixes=['unlogged']) 
+                     schema=schema, prefixes=['unlogged'])
 
-raw_rings = Table('raw_aromaticrings', metadata,
+raw_rings = Table('raw_aromatic_rings', metadata,
                   Column('pdb', String(4), nullable=False, primary_key=True),
                   Column('assembly_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
                   Column('ring_serial', Integer, nullable=False, primary_key=True, autoincrement=False),

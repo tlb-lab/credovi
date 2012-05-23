@@ -77,7 +77,7 @@ ring_interactions = Table('ring_interactions', metadata,
                           Column('interaction_type', String(2)), # "'FF'", "'OF'", "'EE'", "'FT'", "'OT'", "'ET'", "'FE'", "'OE'", "'EF'")
                           schema=schema)
 
-Index('idx_aromatic_rings_biomolecule_id', ring_interactions.c.biomolecule_id)
+Index('idx_ring_interactions_biomolecule_id', ring_interactions.c.biomolecule_id)
 Index('idx_ring_interactions_aromatic_ring_bgn_id', ring_interactions.c.aromatic_ring_bgn_id)
 Index('idx_ring_interactions_aromatic_ring_end_id', ring_interactions.c.aromatic_ring_end_id)
 Index('idx_ring_interactions_closest_atom_bgn_id', ring_interactions.c.closest_atom_bgn_id)

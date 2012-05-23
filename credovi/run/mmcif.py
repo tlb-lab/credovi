@@ -5,7 +5,7 @@ as well in order to identify entities, etc..
 """
 from sqlalchemy import create_engine, text
 
-from credovi import engine 
+from credovi.schema import engine
 
 def apply_offset(pdbs, offset):
     '''
@@ -22,11 +22,11 @@ def apply_limit(pdbs, limit):
     # try to use limit as integer
     try:
         limit = int(limit)
-        
+
         for i,pdb in enumerate(pdbs,1):
             if i <= limit: yield pdb
             else: break
-    
+
     # limit is string
     except ValueError:
         for pdb in pdbs:
@@ -59,8 +59,8 @@ def do(controller):
     """
     # get the controller command
     cmd = controller.command
-    
+
     # get the command line arguments and options
     args = controller.pargs
-    
+
     for pdb in get_current_pdbs(args): print pdb

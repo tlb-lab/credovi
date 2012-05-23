@@ -4,6 +4,7 @@ polymer type.
 """
 
 from sqlalchemy import Boolean, Column, Index, Integer, String, Table, Text, DefaultClause
+from sqlalchemy.dialects.postgresql import ARRAY, DOUBLE_PRECISION
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
@@ -19,6 +20,8 @@ chains = Table('chains', metadata,
                Column('chain_length', Integer),
                Column('chain_seq', Text),
                Column('chain_seq_md5', String(32)),
+               Column('rotation', ARRAY(DOUBLE_PRECISION)),
+               Column('translation', ARRAY(DOUBLE_PRECISION)),
                Column('is_at_identity', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                Column('has_disordered_regions', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                schema=schema)
@@ -42,6 +45,8 @@ chain_comments = {
         "chain_length": "Number of residues in the polymer chain.",
         "chain_seq": "Sequence of the polymer.",
         "chain_seq_md5": "MD5 Hash of the chain sequence.",
+        "rotation": "Rotation matrix.",
+        "translation": "Translation vector.",
         "is_at_identity": "True if the chain is at identity, i.e. no transformation was performed.",
         "has_disordered_regions": "True if the chain contains at least one disordered region (unobserved residues)."
     }

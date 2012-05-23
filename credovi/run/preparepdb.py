@@ -4,7 +4,7 @@ contact generation workflow. Preparation includes the identification of molecula
 entities inside the structure, the assignment of atom types flags and the generation
 of quaternary assemblies.
 
-python credovi.py mmcif currentpdbs -O 2VQE -L 10000 | parallel --eta --halt 2 -n 4 python credovi.py credo preparepdb -Q --oeb --pdb -S {1},{2},{3},{4}
+python credovi.py mmcif currentpdbs | parallel --eta --halt 2 -n 4 python credovi.py credo preparepdb -Q --clean --oeb --pdb -S {1},{2},{3},{4}
 """
 
 import os
@@ -13,15 +13,15 @@ import time
 import glob
 import string
 
+from eyesopen.oechem import *
+from eyesopen.predicates import *
 from progressbar import ProgressBar, Percentage, Bar, SimpleProgress
 
-
-from credovi import app # to get the configuration
+from credovi import app
 from credovi.structbio import db, biomol
 from credovi.structbio.structure import (assign_entity_serials, calc_calpha_ratio,
-                                          get_ligands, identify_surface_atoms,
-                                          parse_header, set_atom_type_flags)
-from credovi.lib.openeye import *
+                                         get_ligands, identify_surface_atoms,
+                                         parse_header, set_atom_type_flags)
 
 # PDB mirror directory
 PDB_MIRROR_DIR      = app.config.get('directories','pdb')
@@ -36,7 +36,7 @@ def get_pdbs_to_process(args):
     Returns a list containing the PDB codes of PDB entries that should be processed.
     """
     pdbs = []
-    
+
     # process all PDB files on mirror
     if args.all:
         pass
@@ -48,7 +48,7 @@ def get_pdbs_to_process(args):
     # use only a limited subset of the pdb
     elif args.testset:
         pdbs = map(string.lower, app.config['test sets'][args.testset])
-    
+
     # apply an offset to the list of PDBs by using the given offset PDB as index
     if pdbs and args.offset:
         try:
@@ -59,22 +59,22 @@ def get_pdbs_to_process(args):
                           "process.".format(args.offset))
             app.close()
             sys.exit(1)
-    
+
     return sorted(pdbs)
 
 def do(controller):
     """
     """
     # get the command line arguments and options
-    args = controller.pargs    
-    
+    args = controller.pargs
+
     # get the PDB codes of PDB entries that should be processed
     pdbs = get_pdbs_to_process(args)
-    
+
     # OEChem input flavour to use for reading PDB entries
     # this flavour will keep alternate location groups
-    OE_PDB_INPUT_FLAVOR = OEIFlavor_Generic_Default | OEIFlavor_PDB_ALTLOC | OEIFlavor_PDB_Default | OEIFlavor_PDB_DATA    
-    
+    OE_PDB_INPUT_FLAVOR = OEIFlavor_Generic_Default | OEIFlavor_PDB_ALTLOC | OEIFlavor_PDB_Default | OEIFlavor_PDB_DATA
+
     # PDB structure reader for gzipped structures
     ifs = oemolistream()
     ifs.SetFlavor(OEFormat_PDB, OE_PDB_INPUT_FLAVOR)
@@ -92,10 +92,10 @@ def do(controller):
 
     # initialize progress bar
     if args.progressbar:
-        
+
         # INFO message would disrupt the progress bar
         app.log.set_level('WARN')
-        
+
         bar = ProgressBar(widgets=['PDB entries: ', SimpleProgress(), ' ', Percentage(), Bar()],
                           maxval=total).start()
 
@@ -106,20 +106,30 @@ def do(controller):
         # update the progress bar if required
         if args.progressbar: bar.update(counter)
 
+        # files are divided into folders by 2nd & 3rd character of PDB code
+        oeb_assembly_dir = os.path.join(QUAT_OEB_DIR, pdb[1:3], pdb)
+        pdb_assembly_dir = os.path.join(QUAT_PDB_DIR, pdb[1:3], pdb)
+
+        # empty assembly directories first to avoid conflicts with older
+        # predictions
+        if args.clean:
+            for path in [os.path.join(oeb_assembly_dir, "{0}-*.oeb".format(pdb)),
+                         os.path.join(pdb_assembly_dir, "{0}-*.pdb".format(pdb))]:
+
+                # remove OEB and PDB files
+                for f in glob.glob(path): os.remove(f)
+
         # test if the processed structure does already exist
         if args.incremental:
-            
+
             # check if quaternary assemblies alreadt exist for this PDB entry
             if args.quat:
-                
-                # OEB files are divided into folders by 2nd & 3rd character of PDB code 
-                assembly_dir = os.path.join(QUAT_OEB_DIR, pdb[1:3], pdb)
-                
-                # check if assembly directory contains OEB files 
-                if len(glob.glob(os.path.join(assembly_dir, "{0}-*.oeb".format(pdb)))):
+
+                # check if assembly directory contains OEB files
+                if len(glob.glob(os.path.join(oeb_assembly_dir, "{0}-*.oeb".format(pdb)))):
                     app.log.info("quaternary structure of {0} does already exist - skipped.".format(pdb))
                     continue
-            
+
             # check if asymmetric unit structure exists already
             else:
                 pass
@@ -176,7 +186,7 @@ def do(controller):
 
         # set credo atom type flags to all atoms
         set_atom_type_flags(structure)
-        
+
         # get information about ligands and polymers from the database
         pdb_polymer_info = db.get_pdb_polymer_info(pdb)
         pdb_ligand_info = db.get_pdb_ligand_info(pdb)
@@ -251,8 +261,8 @@ def do(controller):
 
                 # generate quaternary assemblies using the PISA prediction
                 biomolecules = biomol.generate_biomolecule(structure, pisa)
-            
-            # iterate through biomolecules and save structural data to disk 
+
+            # iterate through biomolecules and save structural data to disk
             for biomolecule in biomolecules:
 
                 # get the assembly number - important later on for the credo schema
@@ -271,55 +281,57 @@ def do(controller):
                 # get ligand molecules / ligand entity identifier are attached to
                 # biomolecule
                 ligands = get_ligands(biomolecule)
-                
+
                 # attach ligands as objects to biomolecule
                 if ligands:
                     biomolecule.SetListData('ligands', ligands)
                     app.log.debug("{0} ligand(s) attached to the quaternary structure"
                                   " of assembly {1}.".format(len(ligands), assembly_serial))
-                    
+
                     # save ligand structures on disk
                     # not really necessary because ligand molecules are attached
                     # to the parent molecule
                     if args.ligands: pass
-                
-                ### save structures to disk ###                
-                
+
+                ### save structures to disk ###
+
                 # write assembly in openeye binary format
                 if args.oeb:
 
                     # files are written to a divided file mirror
-                    path = os.path.join(QUAT_OEB_DIR, pdb[1:3], pdb)
-                    filename = os.path.join(path, '{0}-{1}.oeb'.format(pdb, assembly_serial))
-                    
+                    filename = os.path.join(oeb_assembly_dir,
+                                            '{}-{}.oeb'.format(pdb, assembly_serial))
+
                     # make new directories recursively if necessary
-                    if not os.path.exists(path): os.makedirs(path)                                   
-                    
+                    if not os.path.exists(oeb_assembly_dir):
+                        os.makedirs(oeb_assembly_dir)
+
                     # write the molecule
                     oebofs.open(str(filename)) # no Unicode!
                     OEWriteMolecule(oebofs, biomolecule)
 
                     app.log.debug("biological assembly {0} written as OEB to {1}"
                                   .format(assembly_serial, filename))
-                
+
                 # write biomolecule as PDB file for easier visual inspection -
                 # warning: can produce non-PDB format compliant files
                 if args.pdb:
-                    
+
                     # files are written to a divided file mirror
-                    path = os.path.join(QUAT_PDB_DIR, pdb[1:3], pdb)
-                    filename = os.path.join(path, '{0}-{1}.pdb'.format(pdb, assembly_serial))
-                    
+                    filename = os.path.join(pdb_assembly_dir,
+                                            '{}-{}.pdb'.format(pdb, assembly_serial))
+
                     # make new directories recursively if necessary
-                    if not os.path.exists(path): os.makedirs(path)                                   
-                    
+                    if not os.path.exists(pdb_assembly_dir):
+                        os.makedirs(pdb_assembly_dir)
+
                     # write the molecule
                     pdbofs.open(str(filename)) # no Unicode!
                     OEWriteMolecule(pdbofs, biomolecule)
 
                     app.log.debug('biological assembly {0} written as PDB to {1}'
                                   .format(assembly_serial, filename))
-                
+
                 # write chain structures to disk
                 if args.chains:
 
@@ -358,7 +370,7 @@ def do(controller):
                         # write chain to disk
                         filename = '{0}_{1}_{2}.oeb'.format(pdbcode, assembly_serial,
                                                             pdb_chain_id)
-                        
+
                         path = os.path.join(QUAT_OEB_CHAIN_DIR, pdb[1:3], pdb,
                                             filename)
 
@@ -375,8 +387,8 @@ def do(controller):
                                                                 assembly_serial,
                                                                 chain.NumAtoms(),
                                                                 path))
-        
+
         app.log.debug("finished processing PDB entry {0}.".format(pdb.upper()))
-    
+
     # finish the progress bar
-    if args.progressbar: bar.finish()  
+    if args.progressbar: bar.finish()

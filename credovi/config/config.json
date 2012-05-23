@@ -5,7 +5,7 @@
         "schema": "credo",
         "url": "postgresql+psycopg2://adrian:1r1d1Um@bahamut.bioc.cam.ac.uk/cryst"
     },
-    
+
     "directories":
     {
         "pdb": "/merlin/Mirror/PDB/data/structures/divided/pdb",
@@ -13,12 +13,19 @@
         "quat_oeb": "/merlin/Store/PDB/data/structures/assemblies/divided/oeb",
         "quat_chains_oeb": "/merlin/Store/PDB/data/structures/chains/divided/oeb",
         "asu_oeb": "",
-        "credo_data": "/merlin/Store/CREDO/data"   
+        "credo_data": "/merlin/Store/CREDO/data"
     },
-    
+
     "log":
     {
         "file": "/home/adrian/Dumpster/credovi.log",
         "to_console": true
+    },
+
+    "schema":
+    {
+        "current_biomol_max": 150000,
+        "atoms_partition_size": 5000,
+        "contacts_partition_size": 2500
     }
 }

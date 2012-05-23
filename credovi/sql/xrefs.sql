@@ -32,6 +32,22 @@ JOIN        pdb.map_regions m
 WHERE       m.db_source = 'CATH'
 ORDER BY    2,4;
 
+-- DRUGBANK COMPOUNDS
+INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref, description)
+SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'DrugBank Compound', d.drugbank_id as xref, d.name
+FROM        drugbank.smiles ds
+JOIN        drugbank.drugs d USING(drugbank_id)
+JOIN        pdbchem.chem_comps cp ON cp.ism = ds.ism
+ORDER BY    2,4;
+
+-- DRUGBANK TARGETS
+INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref)
+SELECT      DISTINCT 'Chain', x.entity_id, 'DrugBank Target', tx.target_id as xref
+FROM        credo.xrefs x
+JOIN        drugbank.target_xrefs tx ON tx.xref = x.xref
+WHERE       x.source = 'UniProt' AND tx.source = 'UniProtKB'
+ORDER BY    2,4;
+
 -- CHEMBL COMPOUNDS
 INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref, description)
 SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'ChEMBL Compound', ci.chembl_id as xref, md.pref_name
@@ -84,10 +100,10 @@ JOIN        chembl.assays a ON a.assay_id = at.assay_id
 ORDER BY    2,4;
 
 -- CHEMBL ACTIVITIES FOR LIGANDS
-INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref)
+INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref, description)
 WITH        assays AS
             (
-            SELECT  DISTINCT x.entity_id as chain_id, a.assay_id
+            SELECT  DISTINCT x.entity_id as chain_id, a.assay_id, a.description
             FROM    credo.xrefs x
             JOIN    chembl.assays a ON x.source = 'ChEMBL Assay' AND x.xref = a.chembl_id
             ),
@@ -99,7 +115,8 @@ WITH        assays AS
             JOIN    pdbchem.chem_comps cp ON cp.chem_comp_id = x.entity_id
             JOIN    credo.ligands l ON l.ligand_name = cp.het_id
             )
-SELECT      DISTINCT 'Ligand', l.ligand_id, 'ChEMBL Activity', a.activity_id
+SELECT      DISTINCT 'Ligand', l.ligand_id, 'ChEMBL Activity', a.activity_id,
+            a.standard_type || ' ' || a.relation || ' ' || a.standard_value || ' ' || a.standard_units || COALESCE(' (' || y.description || ')','')
 FROM        chembl.activities a
 JOIN        assays y ON y.assay_id = a.assay_id
 JOIN        ligands l ON l.molregno = a.molregno
@@ -109,8 +126,9 @@ JOIN        credo.residues r ON r.residue_id = b.residue_id AND r.chain_id = y.c
 ORDER BY    2,4;
 
 -- CHEMBL INFERRED ACTIVITIES FOR LIGANDS
-INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref)
-SELECT      DISTINCT 'Ligand', l.ligand_id, 'ChEMBL Inferred Activity', a.activity_id
+INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref, description)
+SELECT      DISTINCT 'Ligand', l.ligand_id, 'ChEMBL Inferred Activity', a.activity_id,
+            a.standard_type || ' ' || a.relation || ' ' || a.standard_value || ' ' || a.standard_units || COALESCE(' (' || ay.description || ')','')
 FROM        chembl.activities a
 JOIN        chembl.assays ay USING(assay_id)
 JOIN        chembl.assay2target att USING(assay_id)
@@ -122,11 +140,11 @@ JOIN        chembl.compound_smiles cs ON cs.molregno = a.molregno
 JOIN        pdbchem.chem_comps cp ON cp.ism = cs.ism
             -- LINK TO CREDO
 JOIN        credo.chains c ON c.chain_id = xr1.entity_id AND xr1.entity_type = 'Chain'
-JOIN        credo.residues r ON r.chain_id = c.chain_id 
+JOIN        credo.residues r ON r.chain_id = c.chain_id
 JOIN        credo.binding_sites b ON b.residue_id = r.residue_id
 JOIN        credo.ligands l ON l.ligand_id = b.ligand_id AND l.ligand_name = cp.het_id
-WHERE       ay.assay_type = 'B' 
-            AND standard_units = 'nM' 
+WHERE       ay.assay_type = 'B'
+            AND standard_units = 'nM'
             AND att.confidence_score >= 8
 ORDER BY    2;
 
@@ -138,3 +156,30 @@ JOIN        variations.variation_to_pdb vp USING(res_map_id)
 JOIN        variations.variation_to_uniprot vu using(variation_to_uniprot_id)
 JOIN        variations.variations v USING(variation_id)
 ORDER BY    2,4;
+
+-- UPDATE FLAG FOR LIGAND DRUG-TARGET INTERACTIONS
+CREATE TEMP TABLE ligand_to_drugbank AS
+SELECT DISTINCT l.ligand_id, dd.drugbank_id
+  FROM credo.ligands l
+  JOIN pdbchem.chem_comps cc ON cc.het_id = l.ligand_name
+  JOIN credo.xrefs xr ON xr.entity_id = cc.chem_comp_id
+  JOIN drugbank.drugs dd ON dd.drugbank_id = xr.xref
+ WHERE xr.entity_type = 'ChemComp'
+       AND xr.source = 'DrugBank Compound'
+       AND dd.groups @> ARRAY['approved'];
+
+CREATE INDEX idx_ligand_to_drugbank_ligand_id ON ligand_to_drugbank USING btree (ligand_id);
+CREATE INDEX idx_ligand_to_drugbank_drugbank_id ON ligand_to_drugbank USING btree (drugbank_id);
+
+UPDATE credo.ligands l
+   SET is_drug_target_int = true
+  FROM (
+        SELECT DISTINCT ld.ligand_id
+          FROM ligand_to_drugbank ld
+          JOIN credo.binding_sites bs ON bs.ligand_id = ld.ligand_id
+          JOIN credo.peptides p ON bs.residue_id = p.residue_id
+          JOIN credo.xrefs xc ON xc.entity_type = 'Chain' and xc.entity_id = p.chain_id
+          JOIN drugbank.drug_to_target dt ON dt.drugbank_id = ld.drugbank_id AND dt.target_id = xc.xref::int
+         WHERE xc.source = 'DrugBank Target'
+       ) sq
+  WHERE l.ligand_id = sq.ligand_id;

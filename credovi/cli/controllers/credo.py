@@ -1,57 +1,59 @@
 from cement2.core import controller
+from textwrap import fill
 
 class CredoController(controller.CementBaseController):
-    '''
+    """
     Each controller accepts its own commands, options and arguments.
-    '''
+    """
     class Meta:
         interface = controller.IController
         label = 'credo'
-        description = """Calculate the core CREDO interaction data for biological complexes. Prepare PDB files for use with the CREDO database."""
+        description = fill("Calculate the core CREDO interaction data for biological "
+                           "complexes. Prepare PDB files for use with the CREDO database.", 80)
         stacked_on = None
-        defaults = dict(testset = 'small', progressbar=False)
-        
+        config_defaults = dict(testset = 'small', progressbar=False)
+
         arguments = [
             (['-A', '--all'],
                 dict(action='store_true',
                      help='Process all structures that can be found in the appropriate directory for the given task.')),
-            
+
             (['-Q', '--quat'],
                 dict(action='store_true',
                      help='Only consider quaternary assemblies')),
-            
+
             (['-S', '--structures'],
                 dict(action='store', metavar='PDB CODES',
                      help='PDB structures that should be processed')),
-            
+
             (['-O', '--offset'],
                 dict(action='store', metavar='PDB CODE',
                      help='PDB code to use as an offset for processing')),
-            
+
             (['-N', '--new'],
                 dict(action='store_true',
                      help='Only structures that have not been processed yet')),
-            
+
             (['-I', '--incremental'],
                 dict(action='store_true',
                      help='Skip structures that have been processed before')),
-            
+
             (['-T', '--testset'],
                 dict(action='store', metavar='SIZE',
                      help='Only process PDB entries given in the test set')),
-            
+
             (['--chains'],
                 dict(action='store_true',
                      help="Save all chains in the prepared structure as separate files.")),
-            
+
             (['--ligands'],
                 dict(action='store_true',
                      help="Save all ligands in the prepared structure as separate files.")),
-            
+
             (['--oeb'],
                 dict(action='store_true',
                      help="Save the prepared structure in OpenEye binary format.")),
-            
+
             (['--pdb'],
                 dict(action='store_true',
                      help="Save the prepared structure in PDB format.")),
@@ -59,7 +61,11 @@ class CredoController(controller.CementBaseController):
             (['--progressbar'],
                 dict(action='store_true',
                      help="Display a progress bar and supress INFO messages.")),
-            
+
+            (['--clean'],
+                dict(action='store_true',
+                     help="Empty directory containing quaternary assemblies of a PDB entry first.")),
+
             (['--dry-run'],
                 dict(action='store_true',
                      help="Process data but do not write files.")),
@@ -67,25 +73,25 @@ class CredoController(controller.CementBaseController):
 
     @controller.expose(hide=True, aliases=['run'])
     def default(self):
-        '''
+        """
         Default method that is called if no commands were specified.
-        '''
+        """
         pass
-    
+
     @controller.expose(hide=False, help="Default mode to generate the data files "
                        "for the CREDO database - requires access to local filesystems "
                        "and databases.")
     def contacts(self):
-        '''
-        '''
+        """
+        """
         pass
-    
+
     @controller.expose(hide=False, help="Process PDB files from the PDB mirror. "
                        "Required for database generation.")
     def preparepdb(self):
-        '''
+        """
         python credovi.py mmcif currentpdbs -L 32 | parallel --dry-run --halt 2 -n 8 python credovi.py credo preparepdb -Q -S {1},{2},{3},{4},{5},{6},{7},{8}
-        '''
+        """
         pass
 
 class CredoStandAloneController(controller.CementBaseController):
@@ -98,27 +104,27 @@ class CredoStandAloneController(controller.CementBaseController):
         label = 'credosa'
         description = """Calculate the core CREDO interaction data for biological complexes. Prepare PDB files for use with the CREDO database. Stand-alone version."""
         stacked_on = None
-        defaults = dict(format = 'tsv')
-        
+        config_defaults = dict(format='tsv')
+
         arguments = [
             (['-S', '--structures'],
                 dict(action='store', metavar='PDB CODES',
-                     help='PDB structures that should be processed')),        
+                     help='PDB structures that should be processed')),
             (['-P', '--pymol'],
                 dict(action='store_true',
                      help='Generate a PyMOL script to visualise contacts.')),
             (['-C', '--contacts'],
                 dict(action='store_true',
-                     help='Write contacts to a file.')),            
+                     help='Write contacts to a file.')),
             (['-F', '--format'],
                 dict(action='store', metavar='FORMAT',
                      help="File format in which contacts will be saved in, either 'csv', 'tsv' or 'xls'. Defaults to 'tsv'.")),
             (['-O', '--output-dir'],
                 dict(action='store',
-                     help="Consider intramolecular interactions as well if possible.")),            
+                     help="Consider intramolecular interactions as well if possible.")),
             (['--gz'],
                 dict(action='store_true',
-                     help="Treat input files as being gzipped.")),            
+                     help="Treat input files as being gzipped.")),
             (['--intramolecular'],
                 dict(action='store_true',
                      help="Consider intramolecular interactions as well if possible. Otherwise only interactions between disconnected components will be recorded.")),
@@ -141,10 +147,10 @@ class CredoStandAloneController(controller.CementBaseController):
                 dict(action='store_true',
                      help="Include water-mediated hydrogen bonds."))
             ]
-        
+
     @controller.expose(hide=True, aliases=['run'])
     def default(self):
-        '''
+        """
         Default method that is called if no commands were specified.
-        '''
+        """
         pass

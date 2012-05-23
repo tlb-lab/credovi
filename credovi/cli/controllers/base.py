@@ -1,19 +1,19 @@
 from cement2.core import controller
 
 class BaseController(controller.CementBaseController):
-    '''
+    """
     Base controller for Credovi. This controller will be called if no other controller
     was specified; other controllers can be stacked on this one if necessary.
-    '''
+    """
     class Meta:
-        '''
-        '''
+        """
+        """
         interface = controller.IController
         label = 'base' # do not name 'base' otherwise it will clash with config
         description = "Credovi: command line interface to work with the CREDO database."
 
         # default values for command line options
-        defaults = dict()
+        config_defaults = dict()
 
         # definition of command line options that are supported
         arguments = [
@@ -38,8 +38,8 @@ class BaseController(controller.CementBaseController):
     def default(self):
         """
         """
-        pass
-    
+        print "FOO"
+
     @controller.expose(help="Print sections and keys of the current configuration.")
     def conf(self):
         """
@@ -47,7 +47,7 @@ class BaseController(controller.CementBaseController):
         to the app.
         """
         pass
-    
+
     @controller.expose(help="Work with the CREDO data directory.")
     def data(self):
         """

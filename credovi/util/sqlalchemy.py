@@ -49,7 +49,7 @@ class Cube(types.UserDefinedType):
         def process(value):
             return value
         return process
-    
+
 class PTree(types.UserDefinedType):
     """
     Custom data type to create a vector composite type.
@@ -58,7 +58,7 @@ class PTree(types.UserDefinedType):
         pass
 
     def get_col_spec(self):
-        return "ltree"
+        return "ptree"
 
     def bind_processor(self, dialect):
         def process(value):
@@ -98,10 +98,10 @@ def CreateComment(element, comment):
     """
     if isinstance(element, Table):
         statement = "COMMENT ON TABLE %(fullname)s IS '{0}'".format(comment)
-    
+
     elif isinstance(element, Column):
         statement = "COMMENT ON COLUMN %(fullname)s.{0} IS '{1}'".format(element.name, comment)
-        
+
     return DDL(statement)
 
 def comment_on_table_elements(table, comments):
@@ -109,15 +109,15 @@ def comment_on_table_elements(table, comments):
     This function takes a table and a dictionary of comments in the form
     {"table": "table comment", "columns": {"column name": "column comment"}} and
     adds these comments to the table as well as to all its columns through the
-    SQLAlchemy event.listen() framework. 
+    SQLAlchemy event.listen() framework.
     """
     # add a comment to describe the table
     listen(table, "after_create", CreateComment(table, comments['table']))
-    
+
     # add comments to the table columns as well
     for column in table.columns:
         try:
             comment = comments['columns'][column.name]
         except KeyError: pass
-        
+
         listen(table, "after_create", CreateComment(column, comment))

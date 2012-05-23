@@ -6,11 +6,12 @@ from sqlalchemy import (Boolean, CheckConstraint, Column, DDL, Float, Index, Int
                         String, Table, DefaultClause)
 from sqlalchemy.event import listen
 
+from credovi import app
 from credovi.schema import metadata, schema
-from credovi.util.sqlalchemy import Vector3D, comment_on_table_elements
+from credovi.util.sqlalchemy import PTree, Vector3D, comment_on_table_elements
 
-CURRENT_BIOMOL_MAX = 150000
-ATOMS_PARTITION_SIZE = 10000
+CURRENT_BIOMOL_MAX   = app.config.get('schema','current_biomol_max')
+ATOMS_PARTITION_SIZE = app.config.get('schema','atoms_partition_size')
 
 ATOMS_INS_RULE_DDL = """
                         CREATE OR REPLACE RULE {rule} AS
@@ -24,6 +25,7 @@ atoms = Table('atoms', metadata,
               Column('atom_id', Integer, primary_key=True),
               Column('biomolecule_id', Integer, nullable=False),
               Column('residue_id', Integer, nullable=False),
+              Column('path', PTree),
               Column('atom_serial', Integer, nullable=False),
               Column('group_pdb', String(7), nullable=False), # HETATM/ATOM
               Column('atom_name', String(4), nullable=False),
@@ -56,6 +58,7 @@ comments = {
         "atom_id": "Primary key of the atom.",
         "biomolecule_id": "Primary key of the parent biomolecule.",
         "residue_id": "Primary key of the parent residue.",
+        "path": "PyMOL-like selection syntax for this atom.",
         "atom_serial": "PDB serial number of the atom.",
         "group_pdb": "Either ATOM or HETATM.",
         "atom_name": "PDB Atom name.",
@@ -84,17 +87,18 @@ comments = {
 
 comment_on_table_elements(atoms, comments)
 
-# create new paritions for every 5000 biomolecules
+# create new paritions for every X biomolecules
 partitions = range(0, CURRENT_BIOMOL_MAX+ATOMS_PARTITION_SIZE, ATOMS_PARTITION_SIZE)
 
 for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
     tablename = 'atoms_biomol_le_{0}'.format(part_bound_high)
-    rulename = tablename + '_insert' 
+    rulename = tablename + '_insert'
 
     partition = Table(tablename, metadata,
                       Column('atom_id', Integer, primary_key=True),
                       Column('biomolecule_id', Integer, nullable=False),
                       Column('residue_id', Integer, nullable=False),
+                      Column('path', PTree),
                       Column('atom_serial', Integer, nullable=False),
                       Column('group_pdb', String(7), nullable=False), # HETATM/ATOM
                       Column('atom_name', String(4), nullable=False),
@@ -121,8 +125,11 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
                       CheckConstraint("biomolecule_id > {0} AND biomolecule_id <= {1}".format(part_bound_low, part_bound_high)),
                       schema=schema)
 
-    Index('idx_{0}_atom'.format(tablename), partition.c.residue_id, partition.c.atom_name, partition.c.alt_loc, unique=True)
-    Index('idx_{0}_serial'.format(tablename), partition.c.biomolecule_id, partition.c.atom_serial, unique=True)
+    Index('idx_{0}_atom'.format(tablename), partition.c.residue_id, partition.c.atom_name,
+          partition.c.alt_loc, unique=True)
+
+    Index('idx_{0}_serial'.format(tablename), partition.c.biomolecule_id,
+          partition.c.atom_serial, unique=True)
 
     # neccessary to drop tables with sqlalchemy
     partition.add_is_dependent_on(atoms)
@@ -136,9 +143,9 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
            DDL(ATOMS_INS_RULE_DDL.format(schema=schema, table=tablename,
                                          rule=rulename, part_bound_low=part_bound_low,
                                          part_bound_high=part_bound_high)))
-    
+
     # drop the rules on the master table because they depend on the partitions
     listen(partition, "before_drop",
-       DDL("DROP RULE {rule} ON {schema}.atoms".format(schema=schema, rule=rulename)))
-    
+           DDL("DROP RULE IF EXISTS {rule} ON {schema}.atoms".format(schema=schema, rule=rulename)))
+
     comment_on_table_elements(partition, comments)

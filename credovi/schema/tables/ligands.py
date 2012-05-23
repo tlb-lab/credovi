@@ -1,5 +1,6 @@
 from sqlalchemy import (Boolean, Column, DDL, DefaultClause, Float, Index, Integer,
                         LargeBinary, String, Table, Text)
+from sqlalchemy.event import listen
 from sqlalchemy.dialects.postgresql import ARRAY
 
 from credovi.schema import metadata, schema
@@ -27,7 +28,7 @@ ligands = Table('ligands', metadata,
                 schema=schema)
 
 Index('idx_ligands_biomolecule_id', ligands.c.biomolecule_id, ligands.c.entity_serial, unique=True)
-Index('idx_ligands_pdb', ligands.c.biomolecule_id, ligands.c.pdb_chain_id, ligands.c.res_num, unique=True)
+Index('idx_ligands_pdb', ligands.c.biomolecule_id, ligands.c.pdb_chain_id, ligands.c.res_num, ligands.c.ligand_name, unique=True)
 Index('idx_ligands_name', ligands.c.ligand_name, ligands.c.pdb_chain_id, ligands.c.res_num)
 Index('idx_ligands_path', ligands.c.path, postgresql_using='gist')
 
@@ -58,6 +59,29 @@ ligand_comments = {
 
 comment_on_table_elements(ligands, ligand_comments)
 
+ligand_components = Table('ligand_components', metadata,
+                          Column('ligand_component_id', Integer, primary_key=True),
+                          Column('ligand_id', Integer, nullable=False),
+                          Column('residue_id', Integer, nullable=False),
+                          Column('het_id', String(3), nullable=False),
+                          schema=schema)
+
+Index('idx_ligand_components_ligand_id', ligand_components.c.ligand_id)
+Index('idx_ligand_components_residue_id', ligand_components.c.residue_id, unique=True)
+
+ligand_component_comments = {
+    "table": "Contains the residues that a given ligand consists of.",
+    "columns":
+    {
+        "ligand_component_id": "Primary key of the ligand component.",
+        "ligand_id": "Primary key of the parent ligand.",
+        "residue_id": "Primary key of the residue.",
+        "het_id": "Chemical component identifier."
+    }
+}
+
+comment_on_table_elements(ligand_components, ligand_component_comments)
+
 ligand_molstrings = Table('ligand_molstrings', metadata,
                           Column('ligand_id', Integer, primary_key=True, nullable=False, autoincrement=False),
                           Column('ism', Text, nullable=False),
@@ -87,6 +111,10 @@ ligand_usr = Table('ligand_usr', metadata,
 # create gist index on n-dimensional space
 Index ('idx_ligand_usr_usr_space', ligand_usr.c.usr_space, postgresql_using='gist')
 
+listen(ligand_usr, "after_create",
+       DDL("ALTER TABLE %(fullname)s CLUSTER ON idx_ligand_usr_usr_space;",
+           on='postgresql'))
+
 ligand_usr_comments = {
     "table": "Contains the USR moments of all ligands with at least 7 heavy atoms. The usr_space columns contains the first 12 default moments as CUBE to make use of the GIST index. usr_moments contains the USRCAT moments.",
     "columns":
@@ -98,27 +126,6 @@ ligand_usr_comments = {
 }
 
 comment_on_table_elements(ligand_usr, ligand_usr_comments)
-
-ligand_components = Table('ligand_components', metadata,
-                          Column('ligand_component_id', Integer, primary_key=True),
-                          Column('ligand_id', Integer, nullable=False),
-                          Column('residue_id', Integer, nullable=False),
-                          schema=schema)
-
-Index('idx_ligand_components_ligand_id', ligand_components.c.ligand_id)
-Index('idx_ligand_components_residue_id', ligand_components.c.residue_id, unique=True)
-
-ligand_component_comments = {
-    "table": "Contains the residues that a given ligand consists of.",
-    "columns":
-    {
-        "ligand_component_id": "Primary key of the ligand component.",
-        "ligand_id": "Primary key of the parent ligand.",
-        "residue_id": "Primary key of the residue."
-    }
-}
-
-comment_on_table_elements(ligand_components, ligand_component_comments)
 
 hetatms = Table('hetatms', metadata,
                 Column('hetatm_id', Integer, primary_key=True),
@@ -154,7 +161,7 @@ bindingsites = Table('binding_sites', metadata,
 Index('idx_binding_sites_residue_id', bindingsites.c.residue_id)
 
 binding_site_comments = {
-    "table": "Mapping between ligands and the residues they interact with.",
+    "table": "Mapping between ligands and the residues they interact with (including other ligands, solvents).",
     "columns":
     {
         "ligand_id": "Primary key of the ligand.",
@@ -193,4 +200,4 @@ binding_site_fuzcav = Table('binding_site_fuzcav', metadata,
                             Column('ligand_id', Integer, nullable=False, primary_key=True),
                             Column('calphafp', ArrayXi, nullable=False),
                             Column('repfp', ArrayXi, nullable=False),
-                            schema=schema)  
+                            schema=schema)

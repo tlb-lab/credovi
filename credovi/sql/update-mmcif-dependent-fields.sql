@@ -19,6 +19,16 @@ FROM        (
             ) rs
 WHERE       s.pdb = rs.structure_id;
 
+-- UPDATE DEPOSITION AND LATEST MOD DATE
+UPDATE credo.structures s
+   SET deposition_date = sq.deposition_date, modified_date = sq.modified_date
+  FROM (
+          SELECT structure_id as pdb, min(date_original) as deposition_date, max(date) as modified_date
+            FROM mmcif.database_pdb_rev
+        GROUP BY structure_id
+       ) sq
+ WHERE s.pdb = sq.pdb;
+
 -- UPDATE THE EXPERIMENTAL METHOD FOR EACH STRUCTURE
 UPDATE      credo.structures s
 SET         method = e.method
@@ -115,7 +125,7 @@ WHERE       c.chain_id = rs.chain_id;
 
 -- UPDATE PDB CHAIN POLYMER SEQUENCE
 UPDATE      credo.chains c
-SET         chain_seq = rs.pdbx_seq_one_letter_code_can, 
+SET         chain_seq = rs.pdbx_seq_one_letter_code_can,
             chain_seq_md5 = UPPER(md5(rs.pdbx_seq_one_letter_code_can)),
             chain_length = LENGTH(rs.pdbx_seq_one_letter_code_can)
 FROM        (
@@ -136,8 +146,7 @@ WHERE       c.chain_id = rs.chain_id;
    SELECT c.chain_id
      FROM credo.chains c
           -- IGNORE ALREADY EXISTING ONES
-LEFT JOIN credo.polypeptides p ON p.chain_id = c.chain_id
-    WHERE p.chain_id IS NULL
+    WHERE c.chain_id > (SELECT COALESCE(MAX(chain_id),0) FROM credo.polypeptides)
           AND (c.chain_type = 'polypeptide(L)' OR c.chain_type = 'polypeptide(D)')
  ORDER BY 1;
 
@@ -226,9 +235,9 @@ FROM    credo.chains c,
 WHERE   p.chain_id = c.chain_id
         AND c.biomolecule_id = b.biomolecule_id
         AND b.structure_id = s.structure_id
-        AND m.pdb = s.pdb 
+        AND m.pdb = s.pdb
         AND m.pdb_chain_id = c.pdb_chain_asu_id
-        AND m.pdb_res_num = p.res_num 
+        AND m.pdb_res_num = p.res_num
         AND m.pdb_ins_code = p.ins_code;
 
 -- UPDATE MODIFIED RESIDUES
@@ -243,7 +252,7 @@ UPDATE 	credo.peptides p
 SET     is_mutated = true
 FROM    pdb.res_map m
 WHERE   m.res_map_id = p.res_map_id
-        AND p.is_modified = false AND p.is_non_std = false 
+        AND p.is_modified = false AND p.is_non_std = false
         AND p.one_letter_code != m.uniprot_res_name;
 
 -- UPDATE CATH FOR PEPTIDES
@@ -272,26 +281,25 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES THAT ARE NOT IN THE INTERFACES TABLE YET
-        FOR biomol_id IN   SELECT biomolecule_id 
-                             FROM credo.biomolecules 
-                            WHERE biomolecule_id > (SELECT max(biomolecule_id) FROM credo.interfaces)
+        FOR biomol_id IN   SELECT biomolecule_id
+                             FROM credo.biomolecules
+                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.interfaces)
                          ORDER BY 1
         LOOP
-            -- INSERT CONTACTS
-            EXECUTE 
+            EXECUTE
             '
-              INSERT INTO credo.interfaces(biomolecule_id, chain_bgn_id, chain_end_id, 
+              INSERT INTO credo.interfaces(biomolecule_id, chain_bgn_id, chain_end_id,
                                            num_res_bgn, num_res_end)
-              SELECT cs.biomolecule_id, 
+              SELECT cs.biomolecule_id,
                      rbgn.chain_id as chain_bgn_id, rend.chain_id as chain_end_id,
                      COUNT(DISTINCT rbgn.residue_id) AS num_res_bgn,
                      COUNT(DISTINCT rend.residue_id) AS num_res_end
                 FROM credo.contacts cs
-                JOIN credo.atoms abgn 
-                     ON abgn.atom_id = cs.atom_bgn_id 
+                JOIN credo.atoms abgn
+                     ON abgn.atom_id = cs.atom_bgn_id
                      AND abgn.biomolecule_id = cs.biomolecule_id
-                JOIN credo.atoms aend 
-                     ON aend.atom_id = cs.atom_end_id 
+                JOIN credo.atoms aend
+                     ON aend.atom_id = cs.atom_end_id
                      AND aend.biomolecule_id = cs.biomolecule_id
                 JOIN credo.peptides rbgn ON rbgn.residue_id = abgn.residue_id
                 JOIN credo.peptides rend ON rend.residue_id = aend.residue_id
@@ -300,7 +308,7 @@ DO $$
                      AND cs.is_same_entity = false AND cs.is_secondary = false
                      AND rbgn.chain_id != rend.chain_id
             GROUP BY cs.biomolecule_id, rbgn.chain_id, rend.chain_id
-            ORDER BY 1,2,3;   
+            ORDER BY 1,2,3;
             ' USING biomol_id;
 
             RAISE NOTICE 'inserted protein-protein interfaces for biomolecule %', biomol_id;
@@ -311,17 +319,17 @@ END$$;
 UPDATE credo.interfaces i
    SET is_quaternary = true
   FROM credo.chains cbgn, credo.chains cend
- WHERE cbgn.chain_id = i.chain_bgn_id AND cend.chain_id = i.chain_end_id  
+ WHERE cbgn.chain_id = i.chain_bgn_id AND cend.chain_id = i.chain_end_id
        AND (cbgn.is_at_identity = false OR cend.is_at_identity = false);
 
--- RESIDUES IN PROTEIN-PROTEIN INTERFACES       
+-- RESIDUES IN PROTEIN-PROTEIN INTERFACES
   INSERT INTO credo.interface_residues
   SELECT DISTINCT i.interface_id, rbgn.residue_id, rend.residue_id
     FROM credo.residue_interaction_pairs rip
     JOIN credo.residues rbgn ON rbgn.residue_id = rip.residue_bgn_id
-    JOIN credo.residues rend ON rend.residue_id = rip.residue_end_id 
+    JOIN credo.residues rend ON rend.residue_id = rip.residue_end_id
     JOIN credo.interfaces i ON i.chain_bgn_id = rbgn.chain_id AND i.chain_end_id = rend.chain_id
-   WHERE i.interface_id > (SELECT MAX(interface_id) FROM credo.interface_residues)
+   WHERE i.interface_id > (SELECT COALESCE(MAX(interface_id),0) FROM credo.interface_residues)
          AND rbgn.entity_type_bm & 32 != 0 AND rend.entity_type_bm & 32 != 0
          -- NOT INTRAMOLECULAR RESIDUE INTERACTIONS
          AND rbgn.chain_id != rend.chain_id
@@ -331,7 +339,7 @@ ORDER BY 1,2,3;
 UPDATE credo.interfaces i
 SET    has_mod_res = true
 FROM   credo.interface_residues ir, credo.peptides pbgn, credo.peptides pend
-WHERE  ir.interface_id = i.interface_id 
+WHERE  ir.interface_id = i.interface_id
        AND pbgn.residue_id = ir.residue_bgn_id AND  pend.residue_id = ir.residue_end_id
        AND (pbgn.is_modified = true OR pend.is_modified = true);
 
@@ -341,7 +349,7 @@ UPDATE credo.interfaces i
   FROM (
         SELECT i.interface_id,
                (
-                s.pdb || '/' || 
+                s.pdb || '/' ||
                 b.assembly_serial || '/' || 'I:' ||
                 cbgn.pdb_chain_id || '-' ||
                 cend.pdb_chain_id
@@ -353,20 +361,20 @@ UPDATE credo.interfaces i
           JOIN credo.chains cend ON i.chain_end_id = cend.chain_id
        ) sq
  WHERE sq.interface_id = i.interface_id;
- 
--- POPULATE TABLE OF PROTEIN-OLIGONUCLEOTIDE GROOVES 
+
+-- POPULATE TABLE OF PROTEIN-OLIGONUCLEOTIDE GROOVES
 DO $$
     DECLARE
         biomol_id INTEGER;
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES
-        FOR biomol_id IN   SELECT biomolecule_id 
-                             FROM credo.biomolecules 
-                            WHERE biomolecule_id > (SELECT max(biomolecule_id) FROM credo.grooves)
+        FOR biomol_id IN   SELECT biomolecule_id
+                             FROM credo.biomolecules
+                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.grooves)
                          ORDER BY 1
         LOOP
             -- INSERT CONTACTS
-            EXECUTE 
+            EXECUTE
             '
                INSERT INTO credo.grooves(biomolecule_id, chain_prot_id, chain_nuc_id, num_res_prot, num_res_nuc, nucleic_acid_type)
                       -- FIRST CHAIN IS POLYPEPTIDE, SECOND IS NUCLEIC ACID
@@ -375,9 +383,9 @@ DO $$
                       COUNT(DISTINCT p.residue_id) as num_res_prot,
                       COUNT(DISTINCT n.residue_id) as num_res_nuc,
                       o.nucleic_acid_type
-                 FROM credo.residue_interaction_pairs rip    
-                 JOIN credo.peptides p ON p.residue_id = rip.residue_bgn_id 
-                 JOIN credo.nucleotides n ON n.residue_id = rip.residue_end_id 
+                 FROM credo.residue_interaction_pairs rip
+                 JOIN credo.peptides p ON p.residue_id = rip.residue_bgn_id
+                 JOIN credo.nucleotides n ON n.residue_id = rip.residue_end_id
                  JOIN credo.oligonucleotides o ON o.chain_id = n.chain_id
                 WHERE p.biomolecule_id = $1
              GROUP BY p.biomolecule_id, p.chain_id, n.chain_id, o.nucleic_acid_type
@@ -387,9 +395,9 @@ DO $$
                       COUNT(DISTINCT p.residue_id) as num_res_prot,
                       COUNT(DISTINCT n.residue_id) as num_res_nuc,
                       o.nucleic_acid_type
-                 FROM credo.residue_interaction_pairs rip    
-                 JOIN credo.peptides p ON p.residue_id = rip.residue_end_id 
-                 JOIN credo.nucleotides n ON n.residue_id = rip.residue_bgn_id 
+                 FROM credo.residue_interaction_pairs rip
+                 JOIN credo.peptides p ON p.residue_id = rip.residue_end_id
+                 JOIN credo.nucleotides n ON n.residue_id = rip.residue_bgn_id
                  JOIN credo.oligonucleotides o ON o.chain_id = n.chain_id
                 WHERE p.biomolecule_id = $1
              GROUP BY p.biomolecule_id, p.chain_id, n.chain_id, o.nucleic_acid_type
@@ -406,7 +414,7 @@ UPDATE credo.grooves g
   FROM (
         SELECT g.groove_id,
                (
-                s.pdb || '/' || 
+                s.pdb || '/' ||
                 b.assembly_serial || '/' || 'G:' ||
                 cbgn.pdb_chain_id || '-' ||
                 cend.pdb_chain_id
@@ -425,15 +433,15 @@ UPDATE credo.grooves g
     FROM credo.grooves g
     JOIN credo.peptides p ON p.chain_id = g.chain_prot_id
     JOIN credo.nucleotides n ON n.chain_id = g.chain_nuc_id
-    JOIN credo.residue_interaction_pairs rip 
+    JOIN credo.residue_interaction_pairs rip
          ON rip.residue_bgn_id = p.residue_id AND rip.residue_end_id = n.residue_id
-   WHERE g.groove_id > (SELECT MAX(groove_id) FROM credo.groove_residues)      
+   WHERE g.groove_id > (SELECT MAX(groove_id) FROM credo.groove_residues)
    UNION
   SELECT g.groove_id, p.residue_id, n.residue_id
     FROM credo.grooves g
     JOIN credo.peptides p ON p.chain_id = g.chain_prot_id
     JOIN credo.nucleotides n ON n.chain_id = g.chain_nuc_id
-    JOIN credo.residue_interaction_pairs rip 
+    JOIN credo.residue_interaction_pairs rip
          ON rip.residue_end_id = p.residue_id AND rip.residue_bgn_id = n.residue_id
-   WHERE g.groove_id > (SELECT MAX(groove_id) FROM credo.groove_residues)   
+   WHERE g.groove_id > (SELECT COALESCE(MAX(groove_id),0) FROM credo.groove_residues)
 ORDER BY 1,2,3;
