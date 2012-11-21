@@ -1,7 +1,7 @@
 from sqlalchemy import (Boolean, Column, DDL, DefaultClause, Float, Index, Integer,
                         LargeBinary, String, Table, Text)
 from sqlalchemy.event import listen
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, REAL
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import ArrayXi, Cube, PTree, comment_on_table_elements
@@ -15,6 +15,7 @@ ligands = Table('ligands', metadata,
                 Column('ligand_name', String(64), nullable=False),
                 Column('res_num', Integer),
                 Column('num_hvy_atoms', Integer),
+                Column('ism', Text, nullable=False),
                 Column('gini_index_contacts', Float(4,3)),
                 Column('is_at_identity', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                 Column('is_incomplete', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -44,7 +45,8 @@ ligand_comments = {
         "ligand_name": "HET-ID or concatenation of them in case of polymer ligands.",
         "res_num": "PDB residue number of the ligand if single residue, otherwise NULL.",
         "num_hvy_atoms": "Number of heavy atoms of the ligand IN the PDB entry.",
-        "gini_index_contacts": "Gini index for the contacts that the ligand atom form with other atoms.",
+        "ism": "Isomeric SMILES.",
+        "gini_index_contacts": "Gini index for the contacts that the ligand atom form with other atoms (PRO,RNA,DNA).",
         "is_at_identity": "True if the ligand is at identity, i.e. no transformation was performed.",
         "is_incomplete": "True if the ligand has less atoms than the idealised version from PDBeChem.",
         "is_disordered": "True if at least one ligand atom is disordered.",
@@ -86,6 +88,7 @@ ligand_molstrings = Table('ligand_molstrings', metadata,
                           Column('ligand_id', Integer, primary_key=True, nullable=False, autoincrement=False),
                           Column('ism', Text, nullable=False),
                           Column('pdb', Text, nullable=False),
+                          Column('sdf', Text, nullable=False),
                           Column('oeb', LargeBinary, nullable=False),
                           schema=schema)
 
@@ -96,6 +99,7 @@ ligand_molstring_comments = {
         "ligand_id": "Primary key of the ligand.",
         "ism": "Isomeric SMILES.",
         "pdb": "PDB format.",
+        "sdf": "SDF format.",
         "oeb": "OpenEye binary format."
     }
 }
@@ -105,7 +109,7 @@ comment_on_table_elements(ligand_molstrings, ligand_molstring_comments)
 ligand_usr = Table('ligand_usr', metadata,
                    Column('ligand_id', Integer, primary_key=True, nullable=False, autoincrement=False),
                    Column('usr_space', Cube, nullable=False),
-                   Column('usr_moments', ARRAY(Float, mutable=False), nullable=False),
+                   Column('usr_moments', ARRAY(Float, dimensions=1), nullable=False),
                    schema=schema)
 
 # create gist index on n-dimensional space
@@ -127,6 +131,33 @@ ligand_usr_comments = {
 
 comment_on_table_elements(ligand_usr, ligand_usr_comments)
 
+
+ligand_eff = Table('ligand_eff', metadata,
+                   Column('ligand_id', Integer, primary_key=True, nullable=False, autoincrement=False),
+                   Column('activity_id', Integer, primary_key=True, nullable=False, autoincrement=False),
+                   Column('assay_chembl_id', Text),
+                   Column('assay_description', Text),
+                   Column('standard_type', Text),
+                   Column('relation', String(50)),
+                   Column('standard_value', REAL),
+                   Column('standard_units', Text),
+                   Column('p', REAL),
+                   Column('bei', REAL),
+                   Column('sei', REAL),
+                   Column('activity_comment', Text),
+                   schema=schema)
+
+ligand_eff_comments = {
+    "table": "Contains ligand efficiency data from ChEMBL.",
+    "columns":
+    {
+        "ligand_id": "Primary key of the ligand."
+    }
+}
+
+comment_on_table_elements(ligand_eff, ligand_eff_comments)
+
+
 hetatms = Table('hetatms', metadata,
                 Column('hetatm_id', Integer, primary_key=True),
                 Column('ligand_id', Integer, nullable=False),
@@ -142,7 +173,7 @@ hetatm_comments = {
     "table": "Contains the atoms a given ligand consists of.",
     "columns":
     {
-        
+
         "hetatm_id": "Primary key of the hetatm.",
         "ligand_id": "Primary key of the parent ligand.",
         "ligand_component_id": "Primary key of the parent ligand component.",
@@ -152,16 +183,46 @@ hetatm_comments = {
 
 comment_on_table_elements(hetatms, hetatm_comments)
 
+#
+binding_sites = Table('binding_sites', metadata,
+                      Column('ligand_id', Integer, primary_key=True, autoincrement=False, nullable=False),
+                      Column('cath_dmns', ARRAY(String, dimensions=1)),
+                      Column('scop_pxs', ARRAY(String, dimensions=1)),
+                      Column('hom_superfam', Text),
+                      Column('hom_superfam_label', Text),
+                      Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                      Column('has_non_std_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                      Column('has_mod_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                      Column('has_mut_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                      Column('has_mapped_var', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                      Column('is_kinase', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                      schema=schema)
+
+binding_sites_comments = {
+    "table": "Contains more info about the ligand binding sites (protein only!).",
+    "columns":
+    {
+        "ligand_id": "Primary key of the ligand.",
+        "cath_dmns": "Array of cath domains that are mapped onto this binding site.",
+        "scop_pxs": "Array of SCOP px identifiers that are mapped onto this binding site.",
+        "is_mutated": "True if at least one amino acid differs from the canonical UniProt sequence.",
+        "has_missing_atoms": "True if at least one amino acid that is part if this binding site has missing atoms.",
+        "has_mapped_var": "True if at least one residue can be linked to a variation.",
+        "is_kinase": "True if the binding site polypeptide is part of the UniProt human & mouse kinase collection."
+    }
+}
+
 # link between ligands and the residues they interact with
-bindingsites = Table('binding_sites', metadata,
-                     Column('ligand_id', Integer, primary_key=True, nullable=False),
-                     Column('residue_id', Integer, primary_key=True, nullable=False),
-                     schema=schema)
+binding_site_residues = Table('binding_site_residues', metadata,
+                              Column('ligand_id', Integer, primary_key=True, autoincrement=False, nullable=False),
+                              Column('residue_id', Integer, primary_key=True, autoincrement=False, nullable=False),
+                              Column('entity_type_bm', Integer, nullable=False),
+                              schema=schema)
 
-Index('idx_binding_sites_residue_id', bindingsites.c.residue_id)
+Index('idx_binding_site_residues_residue_id', binding_site_residues.c.residue_id)
 
-binding_site_comments = {
-    "table": "Mapping between ligands and the residues they interact with (including other ligands, solvents).",
+binding_site_residues_comments = {
+    "table": "Mapping between ligands and the residues they interact with.",
     "columns":
     {
         "ligand_id": "Primary key of the ligand.",
@@ -169,7 +230,7 @@ binding_site_comments = {
     }
 }
 
-comment_on_table_elements(bindingsites, binding_site_comments)
+comment_on_table_elements(binding_site_residues, binding_site_residues_comments)
 
 binding_site_atom_surface_areas = Table('binding_site_atom_surface_areas', metadata,
                                         Column('ligand_id', Integer, primary_key=True, autoincrement=False),

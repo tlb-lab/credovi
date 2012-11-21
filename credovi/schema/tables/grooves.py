@@ -2,7 +2,7 @@
 The grooves table holds protein-nucleic acid complexes.
 """
 
-from sqlalchemy import Column, Index, Integer, String, Table
+from sqlalchemy import Column, Index, Integer, String, Table, Boolean, DefaultClause
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
@@ -16,6 +16,7 @@ grooves = Table('grooves', metadata,
                 Column('num_res_prot', Integer, nullable=False),
                 Column('num_res_nuc', Integer, nullable=False),
                 Column('nucleic_acid_type', String(3), nullable=False), # DNA, RNA, HYB
+                Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                 schema=schema)
 
 Index('idx_grooves_chain_prot_id', grooves.c.chain_prot_id)
@@ -32,8 +33,9 @@ groove_comments = {
         "chain_nuc_id": "Primary key of the oligonucleotide chain.",
         "path": "ptree path in the form PDB/assembly serial number/G:PDB chain prot ID-PDB chain nuc ID",
         "num_res_prot": "Number of polypetide residues that are interacting.",
-        "num_res_nuc": "Number of oligonucleotide residues that are interacting.", 
-        "nucleic_acid_type": "Type of the nucleic acid, either DNA/RNA or hybrid."
+        "num_res_nuc": "Number of oligonucleotide residues that are interacting.",
+        "nucleic_acid_type": "Type of the nucleic acid, either DNA/RNA or hybrid.",
+        "has_missing_atoms": "True if at least one residue has missing atoms."
     }
 }
 

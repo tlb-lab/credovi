@@ -1,5 +1,5 @@
 """
-python credovi.py mmcif currentpdbs | parallel --eta --halt 2 -n 4 python credovi.py credo contacts -Q -S {1},{2},{3},{4}
+python credovi.py mmcif currentpdbs | parallel --eta --halt 2 -n 6 python credovi.py credo contacts -Q -S {1},{2},{3},{4},{5},{6}
 """
 
 import os

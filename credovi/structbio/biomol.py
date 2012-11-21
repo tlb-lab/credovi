@@ -2,8 +2,9 @@ from itertools import groupby, ifilter
 from operator import itemgetter
 from string import ascii_uppercase
 
+from eyesopen.oechem import *
+
 from credovi import app
-from credovi.lib.openeye import *
 from credovi.util.timer import timer
 from credovi.structbio.structure import get_ligand_entity_serials
 
@@ -50,8 +51,11 @@ def generate_biomolecule(structure, pisa):
 
         # an assembly equates to a valid biomolecule
         # a PDB structure can contain more than one biomolecule in the asu (1c3h)
-        for assembly_serial in pisa[set_serial]:
+        for assembly_serial in sorted(pisa[set_serial].keys()):
             biomolecule = OEMol()
+
+            # preserve original PDB header
+            OECopyPDBData(biomolecule, structure)
 
             # dictionary to keep track of the transformations that were executed
             # on newly created chains
@@ -134,7 +138,7 @@ def generate_biomolecule(structure, pisa):
 
                         # keep track of the transformations that were performed
                         # on this chain
-                        biomol_trans_mapping[cur_chain_id] = details
+                        biomol_trans_map[cur_chain_id] = details
 
                         # debug information about the new pdb chain id that was created
                         app.log.debug(msg + "to generate chain {0}.".format(cur_chain_id))
@@ -192,6 +196,9 @@ def generate_biomolecule(structure, pisa):
 
             # assign PDB serial numbers to new atoms
             OEAssignSerialNumbers(biomolecule)
+
+            #
+            OEPerceiveSecondaryStructure(biomolecule)
 
             biomolecules.append(biomolecule)
 

@@ -3,15 +3,15 @@
     {
         "echo": false,
         "schema": "credo",
-        "url": "postgresql+psycopg2://adrian:1r1d1Um@bahamut.bioc.cam.ac.uk/cryst"
+        "url": "postgresql+psycopg2://adrian:1r1d1Um@bahamut.bioc.cam.ac.uk:5432/cryst"
     },
 
     "directories":
     {
-        "pdb": "/merlin/Mirror/PDB/data/structures/divided/pdb",
-        "quat_pdb": "/merlin/Store/PDB/data/structures/assemblies/divided/pdb",
-        "quat_oeb": "/merlin/Store/PDB/data/structures/assemblies/divided/oeb",
-        "quat_chains_oeb": "/merlin/Store/PDB/data/structures/chains/divided/oeb",
+        "pdb": "/tlbnas/store/pdb/data/structures/divided/pdb",
+        "quat_pdb": "/tlbnas/store/pdb/data/structures/assemblies/divided/pdb",
+        "quat_oeb": "/tlbnas/store/pdb/data/structures/assemblies/divided/oeb",
+        "quat_chains_oeb": "/tlbnas/store/pdb/data/structures/chains/divided/oeb",
         "asu_oeb": "",
         "credo_data": "/merlin/Store/CREDO/data"
     },

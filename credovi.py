@@ -38,10 +38,13 @@ def main():
     # run stand-alone version
     elif controller.Meta.label == 'ligand':
 
-        from credovi.run import fuzcav, molstrings
+        if controller.command == 'fuzcav':
+            from credovi.run import fuzcav
+            fuzcav.do(controller)
 
-        if controller.command == 'fuzcav': fuzcav.do(controller)
-        elif controller.command == 'molstrings': molstrings.do(controller)
+        elif controller.command == 'molstrings':
+            from credovi.run import molstrings
+            molstrings.do(controller)
 
     # close the application
     app.close()

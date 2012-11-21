@@ -6,9 +6,9 @@ CREATE  TABLE credo.ligand_fragments (
         ligand_component_id INTEGER NOT NULL,
         fragment_id INTEGER NOT NULL,
         hit INTEGER NOT NULL,
-        usr_space CUBE DEFAULT NULL,
-        usr_moments_env FLOAT[] DEFAULT NULL,
+        fcd FLOAT DEFAULT NULL,
         is_root boolean NOT NULL DEFAULT FALSE,
+        is_interacting boolean NOT NULL DEFAULT FALSE,
         CONSTRAINT ligand_fragments_pkey PRIMARY KEY (ligand_fragment_id)
 );
 
@@ -23,10 +23,6 @@ CREATE  INDEX idx_ligand_fragments_ligand_component_id
 CREATE  INDEX idx_ligand_fragments_fragment_id
         ON credo.ligand_fragments
         USING btree (fragment_id);
-
-CREATE  INDEX idx_ligand_fragments_usr_space
-        ON credo.ligand_fragments
-        USING gist (usr_space);
 
 GRANT   SELECT ON TABLE credo.ligand_fragments TO credouser;
 
@@ -68,7 +64,7 @@ CREATE  TABLE credo.ligand_fcd (
         CONSTRAINT ligand_fcd_pkey PRIMARY KEY (ligand_fragment_id)
 );
 
-GRANT   SELECT ON TABLE credo.ligand_fcd TO credouser;
+GRANT   SELECT ON TABLE credo.ligand_fcd TO credopvuser;
 
 -- CREATE A MAPPING BETWEEN LIGANDS AND FRAGMENTS
 DO $$
@@ -94,6 +90,16 @@ DO $$
             RAISE NOTICE 'inserted ligand fragments for ligand %', lig_id;
         END LOOP;
 END$$;
+
+-- SET A FLAG OF ROOT LIGAND FRAGMENTS
+UPDATE credo.ligand_fragments lf
+   SET is_root = true
+  FROM credo.ligand_components lc,
+       pdbchem.fragment_hierarchies fh
+ WHERE lc.ligand_component_id = lf.ligand_component_id
+       AND fh.parent_id = lf.fragment_id
+       AND fh.order_parent = 0
+       AND fh.het_id = lc.het_id;
 
 -- CREATE A MAPPING BETWEEN LIGAND FRAGMENTS AND THEIR ATOMS
 DO $$
@@ -179,18 +185,18 @@ DO $$
                             )
                 SELECT      fc.ligand_fragment_id,
                             COUNT(DISTINCT fc.atom_id) AS num_int_atoms,
-                            SUM(ARRAY_AGG(fc.is_covalent)) as num_covalent,
-                            SUM(ARRAY_AGG(fc.is_vdw_clash)) as num_vdw_clash,
-                            SUM(ARRAY_AGG(fc.is_vdw)) AS num_vdw,
-                            SUM(ARRAY_AGG(fc.is_proximal)) AS num_proximal,
-                            SUM(ARRAY_AGG(fc.is_hbond)) AS num_hbond,
-                            SUM(ARRAY_AGG(fc.is_weak_hbond)) AS num_weak_hbond,
-                            SUM(ARRAY_AGG(fc.is_xbond)) as num_xbond,
-                            SUM(ARRAY_AGG(fc.is_ionic)) as num_ionic,
-                            SUM(ARRAY_AGG(fc.is_metal_complex)) AS num_metal_complex,
-                            SUM(ARRAY_AGG(fc.is_aromatic)) AS num_aromatic,
-                            SUM(ARRAY_AGG(fc.is_hydrophobic)) AS num_hydrophobic,
-                            SUM(ARRAY_AGG(fc.is_carbonyl)) AS num_carbonyl
+                            SUM(fc.is_covalent::int) as num_covalent,
+                            SUM(fc.is_vdw_clash::int) as num_vdw_clash,
+                            SUM(fc.is_vdw::int) AS num_vdw,
+                            SUM(fc.is_proximal::int) AS num_proximal,
+                            SUM(fc.is_hbond::int) AS num_hbond,
+                            SUM(fc.is_weak_hbond::int) AS num_weak_hbond,
+                            SUM(fc.is_xbond::int) as num_xbond,
+                            SUM(fc.is_ionic::int) as num_ionic,
+                            SUM(fc.is_metal_complex::int) AS num_metal_complex,
+                            SUM(fc.is_aromatic::int) AS num_aromatic,
+                            SUM(fc.is_hydrophobic::int) AS num_hydrophobic,
+                            SUM(fc.is_carbonyl::int) AS num_carbonyl
                 FROM        fragment_contacts fc
                 GROUP BY    fc.ligand_fragment_id
                 ORDER BY    fc.ligand_fragment_id
@@ -257,3 +263,16 @@ DO $$
                 RAISE NOTICE 'updated fragment contact densities for all fragments of ligand %', lig_id;
         END LOOP;
 END$$;
+
+-- UPDATE THE FCD VALUE IN THE LIGAND_FRAGMENTS TABLE
+UPDATE credo.ligand_fragments lf
+   SET fcd = fcd.fcd
+  FROM credo.ligand_fcd fcd
+ WHERE lf.ligand_fragment_id = fcd.ligand_fragment_id;
+
+-- SET LIGAND FRAGMENT IS_INTERACTING FLAG:
+-- ONLY THOSE THAT HAVE FCD ARE INTERACTING
+UPDATE credo.ligand_fragments lf
+   SET is_interacting = true
+  FROM credo.ligand_fcd fc
+ WHERE fc.ligand_fragment_id = lf.ligand_fragment_id

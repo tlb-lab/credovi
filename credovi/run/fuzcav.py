@@ -5,13 +5,14 @@ from sqlalchemy import and_, func, or_
 from progressbar import ProgressBar, Percentage, Bar, SimpleProgress
 
 import fuzcav
+
 from credoscript import Session, metadata
-from credoscript.models import Atom, Ligand, Peptide
+from credoscript.models import Atom, Ligand, Peptide, BindingSiteResidue
 
 from credovi import app
 from credovi.schema import engine
 from credovi.util.timer import Timer
-from credovi.schema.tables.ligands import bindingsites, binding_site_fuzcav
+from credovi.schema.tables.ligands import binding_site_fuzcav
 
 def do(controller):
     """
@@ -27,13 +28,14 @@ def do(controller):
     args = controller.pargs
 
     insert = binding_site_fuzcav.insert()
-
     tracker = fuzcav.tracker()
 
     # get the fuzcav side chain representative table from the credoscript metadata
     fuzcav_rep_sc_atoms = metadata.tables['credo.fuzcav_rep_sc_atoms']
 
     timer.start()
+
+    session = Session()
 
     # get all ligands that have more than 7 heavy atoms and no clashes
     query = session.query(Ligand.ligand_id, Ligand.biomolecule_id)
@@ -54,20 +56,18 @@ def do(controller):
                   .format(timer.elapsed()))
 
     #
-    query = session.query(Peptide.res_name, Atom)
-    query = query.select_from(bindingsites)
-    query = query.join(Peptide, Peptide.residue_id==bindingsites.c.residue_id)
+    query = BindingSiteResidue.query
+    query = query.join(Peptide, Peptide.residue_id==BindingSiteResidue.residue_id)
     query = query.join(Atom, Atom.residue_id==Peptide.residue_id)
     query = query.outerjoin(fuzcav_rep_sc_atoms, and_(fuzcav_rep_sc_atoms.c.res_name==Peptide.res_name,
                                                       fuzcav_rep_sc_atoms.c.atom_name==Atom.atom_name))
     query = query.filter(and_(Peptide.is_non_std==False,
-                              or_(Atom.atom_name=='CA', fuzcav_rep_sc_atoms.c.atom_name!=None)
-                              ))
+                              or_(Atom.atom_name=='CA', fuzcav_rep_sc_atoms.c.atom_name!=None)))
+    query = query.with_entities(Peptide.res_name, Atom)
 
     if args.progressbar:
         bar = ProgressBar(widgets=['Binding Sites: ', SimpleProgress(), ' ',
-                                   Percentage(), Bar()],
-                          maxval=len(ligand_ids)).start()
+                                   Percentage(), Bar()], maxval=len(ligand_ids)).start()
 
     # iterate through ligands
     for counter, row in enumerate(ligand_ids, 1):
@@ -78,7 +78,7 @@ def do(controller):
 
         # get all the fuzcav atoms (either CA or representative)
         # important to use the proper atom partition!
-        atoms = query.filter(and_(bindingsites.c.ligand_id==ligand_id,
+        atoms = query.filter(and_(BindingSiteResidue.ligand_id==ligand_id,
                                   Atom.biomolecule_id==biomolecule_id)).all()
 
         # debug how much time it took to get all contacts
@@ -92,11 +92,11 @@ def do(controller):
             continue
 
         # get the calpha atom and its features for each residue
-        calphas = ((np.array(atom.Coords, dtype=float), (fuzcav.FEATURES[res_name]))
-                   for res_name, atom, in atoms if atom.atom_name=='CA')
+        calphas = ((np.array(atom.coords, dtype=float), (fuzcav.FEATURES[res_name]))
+                   for res_name, atom in atoms if atom.atom_name=='CA')
 
         # get the representative atom and its features for each residue
-        representatives = ((np.array(atom.Coords, dtype=float), (fuzcav.FEATURES[res_name]))
+        representatives = ((np.array(atom.coords, dtype=float), (fuzcav.FEATURES[res_name]))
                            for res_name, atom in atoms
                            if atom.atom_name==fuzcav.REPRESENTATIVES[res_name])
 
@@ -116,3 +116,5 @@ def do(controller):
 
     # finish the optional progress bar
     if args.progressbar: bar.finish()
+
+    session.close()

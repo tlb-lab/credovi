@@ -7,7 +7,7 @@ from itertools import groupby
 from operator import itemgetter
 from sqlalchemy.sql import text
 
-from credovi.lib.openeye import OEFloatArray
+from openeye.oechem import OEFloatArray
 from credovi import app
 from credovi.schema import engine
 
@@ -122,7 +122,7 @@ def get_pisa_data(pdb):
     """
     """
     statement = text("""
-                SELECT      s.serial as set_serial, a.serial as assembly_serial, a.size as assembly_size, pdb_select, rotation, translation, is_at_identity
+                SELECT      s.serial as set_serial, a.serial as assembly_serial, a.mmsize as assembly_size, pdb_select, rotation, translation, is_at_identity
                 FROM        pisa.entries e
                 JOIN        pisa.sets s ON s.entry_id = e.entry_id
                 JOIN        pisa.assemblies a ON a.set_id = s.set_id
@@ -183,23 +183,28 @@ def get_pisa_data(pdb):
 
     return pisa
 
-def get_pisa_num_assemblies(pdb):
+def get_pisa_num_assembly_sets(pdb):
     """
     """
     statement = text("""
-                    SELECT      DISTINCT num_assemblies, a.is_stable
-                    FROM        pisa.entries e
-                    LEFT JOIN   pisa.sets s ON s.entry_id = e.entry_id
-                    LEFT JOIN   pisa.assemblies a ON a.set_id = s.set_id
-                    WHERE       pdb = :pdb AND status = 'Ok'
+                          SELECT num_assembly_sets, s.serial, a.is_stable, a.has_polymer
+                            FROM pisa.entries e
+                       LEFT JOIN pisa.sets s ON s.entry_id = e.entry_id
+                       LEFT JOIN pisa.assemblies a ON a.set_id = s.set_id
+                           WHERE pdb = :pdb AND status = 'Ok'
+                        ORDER BY 2,3,4;
                      """)
 
-    result = engine.execute(statement, pdb=pdb.upper()).fetchone()
+    result = engine.execute(statement, pdb=pdb.upper()).fetchall()
 
-    if result:
-        num_assemblies, is_stable = result.values()
+    for row in result:
+        num_assembly_sets, set_serial, is_stable, has_polymer = row.values()
 
-        # return the number of assemblies if stable otherwise -1 to proceed with asu
-        if is_stable: return num_assemblies
+        # PISA predicts monomer, ASU has to be split
+        if num_assembly_sets == 0: return 0
 
+        # return the number of assemblies if stable
+        if set_serial == 1 and is_stable and has_polymer: return num_assembly_sets
+
+    # no PISA entry, proceed with ASU
     return -1

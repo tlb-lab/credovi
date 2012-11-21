@@ -16,6 +16,7 @@ interfaces = Table('interfaces', metadata,
                    Column('num_res_end', Integer, nullable=False),
                    Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                    Column('has_mod_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                   Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                    schema=schema)
 
 Index('idx_interfaces_chain_bgn_id', interfaces.c.chain_bgn_id, interfaces.c.chain_end_id, unique=True)
@@ -34,7 +35,8 @@ interface_comments = {
         "num_res_bgn": "Number of residues of the first chain that are part of this interface.",
         "num_res_end": "Number of residues of the second chain that are part of this interface.",
         "is_quaternary": "True if both chains are at identity, i.e. exist in the asymmetric unit.",
-        "has_mod_res": "True if at least one modified residue if part of the interface."
+        "has_mod_res": "True if at least one modified residue if part of the interface.",
+        "has_missing_atoms": "True if at least one residue has missing atoms."
     }
 }
 
@@ -49,7 +51,7 @@ interface_residues = Table('interface_residues', metadata,
 Index('idx_interface_residues_residue_bgn_id', interface_residues.c.residue_bgn_id)
 Index('idx_interface_residues_residue_end_id', interface_residues.c.residue_end_id)
 
-        
+
 interface_residue_comments = {
     "table": "Contains the combinations of all residues in an interface that are interacting.",
     "columns":

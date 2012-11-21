@@ -4,7 +4,7 @@ contact generation workflow. Preparation includes the identification of molecula
 entities inside the structure, the assignment of atom types flags and the generation
 of quaternary assemblies.
 
-python credovi.py mmcif currentpdbs | parallel --eta --halt 2 -n 4 python credovi.py credo preparepdb -Q --clean --oeb --pdb -S {1},{2},{3},{4}
+python credovi.py mmcif currentpdbs | parallel --eta --halt 2 -n 6 python credovi.py credo preparepdb -Q --clean --oeb --pdb -S {1},{2},{3},{4},{5},{6}
 """
 
 import os
@@ -21,7 +21,8 @@ from credovi import app
 from credovi.structbio import db, biomol
 from credovi.structbio.structure import (assign_entity_serials, calc_calpha_ratio,
                                          get_ligands, identify_surface_atoms,
-                                         parse_header, set_atom_type_flags)
+                                         parse_header, set_atom_type_flags,
+                                         get_ligand_entity_serials)
 
 # PDB mirror directory
 PDB_MIRROR_DIR      = app.config.get('directories','pdb')
@@ -175,6 +176,9 @@ def do(controller):
         # assign tripos atom names to all atoms
         OETriposAtomTypeNames(structure)
 
+        # assign OpenEye secondary structure codes
+        OEPerceiveSecondaryStructure(structure)
+
         # check for calpha structures and peptide ligands (short chains)
         CALPHA_FLAG = calc_calpha_ratio(structure)
 
@@ -209,15 +213,15 @@ def do(controller):
             biomolecules = []
 
             # check whether assemblies can be generated or if the asu has to split into monomers
-            num_assemblies = db.get_pisa_num_assemblies(pdb)
+            num_assembly_sets = db.get_pisa_num_assembly_sets(pdb)
 
             # no prediction in PISA - keep structure as it is
-            if num_assemblies == -1:
+            if num_assembly_sets == -1:
                 app.log.debug('no stable PISA prediction found.')
                 biomolecules.append(structure)
 
             # structure is predicted to be monomeric
-            elif num_assemblies == 0:
+            elif num_assembly_sets == 0:
                 app.log.debug('PISA predicts Monomer.')
 
                 # check if structure has to be split into monomers, i.e. if it

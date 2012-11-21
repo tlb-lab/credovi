@@ -190,6 +190,38 @@ FROM    (
         ) sq
 WHERE   p.chain_id = sq.chain_id;
 
+-- SET A FLAG FOR POLYPEPTIDE THAT ARE IN UNIPROT
+  WITH chains AS
+       (
+        SELECT DISTINCT p.chain_id
+          FROM credo.polypeptides p
+          JOIN credo.xrefs xr ON xr.entity_type = 'Chain' AND p.chain_id = xr.entity_id
+         WHERE xr.source = 'UniProt'
+       )
+UPDATE credo.polypeptides p
+   SET is_in_uniprot = true
+  FROM chains c
+ WHERE c.chain_id = p.chain_id;
+
+-- set a flag for polypeptide chains that are kinases
+  WITH uniprots AS
+       (
+        SELECT acc_human as uniprot FROM credo.kinases WHERE acc_human IS NOT NULL
+        UNION
+        SELECT acc_mouse FROM credo.kinases WHERE acc_mouse IS NOT NULL
+       ),
+       chains AS
+       (
+        SELECT DISTINCT p.chain_id
+          FROM credo.polypeptides p
+          JOIN credo.xrefs xr ON xr.entity_type = 'Chain' and p.chain_id = xr.entity_id
+          JOIN uniprots u ON xr.source = 'UniProt' AND u.uniprot = xr.xref
+       )
+UPDATE credo.polypeptides p
+   SET is_kinase = true
+  FROM chains c
+ WHERE c.chain_id = p.chain_id;
+
 -- INSERT OLIGONUCLEOTIDES
 INSERT      INTO credo.oligonucleotides(chain_id, nucleic_acid_type)
 SELECT      c.chain_id,
@@ -305,7 +337,7 @@ DO $$
                 JOIN credo.peptides rend ON rend.residue_id = aend.residue_id
                WHERE cs.biomolecule_id = $1
                      -- NO INTRAMOLECULAR OR SECONDARY CONTACTS
-                     AND cs.is_same_entity = false AND cs.is_secondary = false
+                     AND cs.is_same_entity = false
                      AND rbgn.chain_id != rend.chain_id
             GROUP BY cs.biomolecule_id, rbgn.chain_id, rend.chain_id
             ORDER BY 1,2,3;
@@ -314,6 +346,25 @@ DO $$
             RAISE NOTICE 'inserted protein-protein interfaces for biomolecule %', biomol_id;
         END LOOP;
 END$$;
+
+    -- UPDATE THE PTREE PATHS OF THE INTERFACES
+    UPDATE credo.interfaces i
+       SET path = sq.path
+      FROM (
+            SELECT i.interface_id,
+                   (
+                    s.pdb || '/' ||
+                    b.assembly_serial || '/' || 'I:' ||
+                    cbgn.pdb_chain_id || '-' ||
+                    cend.pdb_chain_id
+                   ) ::ptree AS path
+              FROM credo.interfaces i
+              JOIN credo.biomolecules b USING(biomolecule_id)
+              JOIN credo.structures s USING(structure_id)
+              JOIN credo.chains cbgn ON i.chain_bgn_id = cbgn.chain_id
+              JOIN credo.chains cend ON i.chain_end_id = cend.chain_id
+           ) sq
+     WHERE sq.interface_id = i.interface_id;
 
 -- UPDATE INTERFACES THAT ARE ONLY IN QUATERNARY ASSEMBLIES
 UPDATE credo.interfaces i
@@ -343,24 +394,13 @@ WHERE  ir.interface_id = i.interface_id
        AND pbgn.residue_id = ir.residue_bgn_id AND  pend.residue_id = ir.residue_end_id
        AND (pbgn.is_modified = true OR pend.is_modified = true);
 
--- UPDATE THE PTREE PATHS OF THE INTERFACES
+ -- SET A FLAG FOR INTERFACES THAT CONTAIN AT LEAST ONE RESIDUE WITH MISSING ATOMS
 UPDATE credo.interfaces i
-   SET path = sq.path
-  FROM (
-        SELECT i.interface_id,
-               (
-                s.pdb || '/' ||
-                b.assembly_serial || '/' || 'I:' ||
-                cbgn.pdb_chain_id || '-' ||
-                cend.pdb_chain_id
-               ) ::ptree AS path
-          FROM credo.interfaces i
-          JOIN credo.biomolecules b USING(biomolecule_id)
-          JOIN credo.structures s USING(structure_id)
-          JOIN credo.chains cbgn ON i.chain_bgn_id = cbgn.chain_id
-          JOIN credo.chains cend ON i.chain_end_id = cend.chain_id
-       ) sq
- WHERE sq.interface_id = i.interface_id;
+SET    has_missing_atoms = true
+FROM   credo.interface_residues ir, credo.peptides pbgn, credo.peptides pend
+WHERE  ir.interface_id = i.interface_id
+       AND pbgn.residue_id = ir.residue_bgn_id AND  pend.residue_id = ir.residue_end_id
+       AND (pbgn.is_incomplete = true OR pend.is_incomplete = true);
 
 -- POPULATE TABLE OF PROTEIN-OLIGONUCLEOTIDE GROOVES
 DO $$
@@ -445,3 +485,71 @@ UPDATE credo.grooves g
          ON rip.residue_end_id = p.residue_id AND rip.residue_bgn_id = n.residue_id
    WHERE g.groove_id > (SELECT COALESCE(MAX(groove_id),0) FROM credo.groove_residues)
 ORDER BY 1,2,3;
+
+-- SET A FLAG FOR GROOVES THAT CONTAIN AT LEAST ONE RESIDUE WITH MISSING ATOMS
+UPDATE credo.grooves g
+SET    has_missing_atoms = true
+FROM   credo.groove_residues gr, credo.peptides p, credo.nucleotides n
+WHERE  gr.groove_id = g.groove_id
+       AND p.residue_id = gr.residue_prot_id
+       AND n.residue_id = gr.residue_nuc_id
+       AND (p.is_incomplete = true OR n.is_incomplete = true);
+
+-- UPDATE QUATERNARY GROOVES
+ UPDATE credo.grooves g
+    SET is_quaternary = true
+   FROM credo.chains prot, credo.chains nuc
+  WHERE prot.chain_id = g.chain_prot_id AND nuc.chain_id = g.chain_nuc_id
+        AND (prot.is_at_identity = false OR nuc.is_at_identity = false);
+
+-- BINDING SITES
+  INSERT INTO credo.binding_sites(ligand_id, cath_dmns, scop_pxs, has_non_std_res,
+                                  has_mod_res, has_mut_res)
+  SELECT ligand_id,
+         ARRAY(SELECT * FROM UNNEST(array_agg(distinct cath)) as u(e) where e IS NOT NULL) as cath_dmns,
+         ARRAY(SELECT * FROM UNNEST(array_agg(distinct px)) as u(e) where e IS NOT NULL) as scop_pxs,
+         bool_or(is_non_std) as has_non_std_res,
+         bool_or(is_modified) as has_mod_res,
+         bool_or(is_mutated) as has_mut_res
+    FROM credo.binding_site_residues bsr
+    JOIN credo.peptides p ON p.residue_id = bsr.residue_id
+GROUP BY ligand_id
+ORDER BY 1;
+
+-- UPDATE BINDING SITE CATH SUPERFAMILY LABELS
+UPDATE credo.binding_sites bs
+   SET hom_superfam = sq.hom_superfam, hom_superfam_label = NULLIF(l.label, 'NULL')
+  FROM (
+        SELECT ligand_id, subltree(d.node, 0, 4) as hom_superfam
+          FROM (
+                SELECT ligand_id, unnest(cath_dmns) as dmn
+                  FROM credo.binding_sites bs
+               ) sq
+          JOIN cath.domains d ON d.dmn = sq.dmn
+       ) sq,
+       cath.labels l
+ WHERE sq.ligand_id = bs.ligand_id AND sq.hom_superfam = l.node;
+
+-- SET A FLAG FOR BINDING SITES THAT HAVE MISSING ATOMS
+UPDATE credo.binding_sites bs
+   SET has_missing_atoms = true
+  FROM credo.binding_site_residues bsr
+  JOIN credo.peptides p USING(residue_id)
+ WHERE bs.ligand_id = bsr.ligand_id AND p.is_incomplete = true;
+
+-- SET A FLAG FOR BINDING SITES THAT HAVE MAPPED VARIATIONS
+UPDATE credo.binding_sites bs
+   SET has_mapped_var = true
+  FROM credo.binding_site_residues bsr
+  JOIN credo.peptides p USING(residue_id)
+  JOIN variations.variation_to_pdb USING(res_map_id)
+ WHERE bs.ligand_id = bsr.ligand_id;
+
+-- set a flag for binding sites that are part of protein kinases
+UPDATE credo.binding_sites bs
+   SET is_kinase = true
+  FROM credo.binding_site_residues bsr, credo.peptides p, credo.polypeptides pp
+ WHERE bs.ligand_id = bsr.ligand_id
+       AND bsr.residue_id = p.residue_id
+       AND p.chain_id = pp.chain_id
+       AND pp.is_kinase = true;

@@ -2,10 +2,10 @@ import os
 import logging
 from itertools import groupby, imap
 
-from openeye.oespicoli import OEMakeMolecularSurface
+from openeye.oespicoli import OESurface, OEMakeMolecularSurface
+from eyesopen.oechem import *
 
 from credovi import app # to get configuration and logger
-from credovi.lib.openeye import *
 from credovi.util.timer import timer
 
 def get_structure(path, pdbcode=None):
@@ -34,7 +34,7 @@ def get_aromatic_rings(structure, patterns):
 
         for match in subsearch.Match(structure, True): # only unique matches
             hit += 1
-    
+
             # get all the atoms that are part of this aromatic ring
             ringatoms = list(match.GetTargetAtoms())
 
@@ -42,13 +42,13 @@ def get_aromatic_rings(structure, patterns):
             # all belong to the same. Aromatic rings with more than one residue
             # cannot be stored in CREDO.
             residues = {OEAtomGetResidue(atom) for atom in ringatoms}
-    
+
             # log an appropriate message and skip this ring
             if len(residues) > 1:
                 app.log.warn("cannot add aromatic ring {}: belongs to more than "
                              "one residue ({}).".format(hit, ', '.join(str(res) for res in residues)))
                 continue
-    
+
             yield (hit, ringatoms)
 
 def get_ligands(structure):
@@ -136,7 +136,7 @@ def set_atom_type_flags(structure):
     that all atom types are set in lowercase.
     """
     atom_types = app.config['atom types']
-    
+
     for atom_type, smartsdict in atom_types.items():
 
         # only for SMARTS patterns that hit single atoms
@@ -182,11 +182,11 @@ def identify_disconnected_components(structure):
     numparts, partlist = OEDetermineComponents(structure)
     pred = OEPartPredAtom(partlist)
 
-    for atom in structure.GetAtoms():
+    for atom in structure.GetAtoms(OENotIsWater):
         atom.SetIntData('entity_serial', partlist[atom.GetIdx()])
-    
+
     app.log.debug("structure contains {0} disconnected components.".format(numparts))
-    
+
     return numparts, pred
 
 @timer("CA/CB ratio calculated in {0:.2f} seconds.")
@@ -420,7 +420,7 @@ def identify_surface_atoms(structure):
             for atom in entity.GetAtoms():
                 structure_atom_idx = entity_atom_map[atom.GetIdx()]
                 structure_atom = structure.GetAtom(OEHasAtomIdx(structure_atom_idx))
-                
+
                 # label the entity atom as being exposed to the surface
                 structure_atom.SetIntData('is_exposed', 1)
 
@@ -429,8 +429,8 @@ def parse_header(structure):
     Parsed the header of a PDB file.
     """
     MONTH_TO_INT = {"JAN":1,"FEB":2,"MAR":3,"APR":4,"MAY":5, "JUN":6,
-                    "JUL":7,"AUG":8,"SEP":9,"OCT":10,"NOV":11,"DEC":12}    
-    
+                    "JUL":7,"AUG":8,"SEP":9,"OCT":10,"NOV":11,"DEC":12}
+
     header = {'REVDAT':'','REMARK 350':''}
 
     # extract information from the PDB header
@@ -477,3 +477,28 @@ def get_ligand_entity_serials(structure):
                             if atom.GetIntData('entity_type_bm') & 2)
 
     return sorted(ligand_entity_serials)
+
+def extract_entity_with_selection(structure, selection):
+    """
+    Returns the molecule that matches the selection and extracts it from the
+    parent structure. The selection is a string in the form
+    <PDB CHAIN ID>.[<RESNUM>] where the residue number is optional.
+    """
+    pdb_res_num, predicate = '', None
+    parts = selection.split('.')
+
+    # try to extract the PDB Chain identifier and residue number
+    if len(parts) == 1: pdb_chain_id = parts.pop()
+    elif len(parts) == 2: pdb_chain_id, pdb_res_num = parts
+    else: raise ValueError("malformed selection: {}.".format(selection))
+
+    # compile the predicate to extract the entity
+    if pdb_chain_id.isalpha():
+        predicate = OEHasChainID(str(pdb_chain_id))
+    if pdb_res_num and pdb_res_num.isdigit():
+        predicate = OEAndAtom(predicate, OEHasResidueNumber(int(pdb_res_num)))
+
+    # extract the entity from the parent structure
+    entity = get_subsetmol(structure, predicate, remove=True)
+
+    return entity

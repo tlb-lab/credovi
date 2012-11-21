@@ -24,11 +24,11 @@ HBOND_HOH_DIST          = HYDROGEN_CONTRIB + OEGetBondiVdWRadius(8)
 VDW_COMP_FACTOR         = 0.1
 
 def is_hbond(structure, atom_bgn, atom_end, distance):
-    '''
-    '''
+    """
+    """
     def _is_hbond(donor, acceptor):
-        '''
-        '''
+        """
+        """
         for hydrogen in donor.GetAtoms(OEIsHydrogen()):
             if OEGetDistance(structure, hydrogen, acceptor) <= VDW_HYDROGEN + acceptor.GetRadius() + VDW_COMP_FACTOR:
 
@@ -63,11 +63,11 @@ def is_hbond(structure, atom_bgn, atom_end, distance):
     return IS_HBOND
 
 def is_weak_hbond(structure, atom_bgn, atom_end, distance):
-    '''
-    '''
+    """
+    """
     def _is_weak_hbond(donor, acceptor):
-        '''
-        '''
+        """
+        """
         for hydrogen in donor.GetAtoms(OEIsHydrogen()):
 
             # check for bond-like character
@@ -78,9 +78,9 @@ def is_weak_hbond(structure, atom_bgn, atom_end, distance):
         return 0
 
     def _is_halogen_weak_hbond(donor, halogen):
-        '''
+        """
         Halogens can acts as weak hydrogen bond acceptors in a head-on orientation.
-        '''
+        """
         # atom attached to halogen - important for the identification of the side-on orientation
         nbr = OEGetSingleBondNeighbor(halogen)
 
@@ -116,13 +116,13 @@ def is_weak_hbond(structure, atom_bgn, atom_end, distance):
     return IS_WEAK_HBOND
 
 def is_xbond(structure, atom_bgn, atom_end, distance, sum_vdw_radii):
-    '''
+    """
     Halogens can form electrostatic interactions with Lewis-bases (nucleophiles) in a head-on
     orientation.
-    '''
+    """
     def _is_xbond(donor, acceptor):
-        '''
-        '''
+        """
+        """
         #u
         nbr = OEGetSingleBondNeighbor(donor)
         theta = OEGetAngle(structure, nbr, donor, acceptor)
@@ -145,10 +145,10 @@ def is_xbond(structure, atom_bgn, atom_end, distance, sum_vdw_radii):
     return IS_XBOND
 
 def is_ionic(atom_bgn, atom_end, distance):
-    '''
-    '''
+    """
+    """
     IS_IONIC = 0
-    
+
     if distance <= contact_types['ionic']['distance']:
         if atom_bgn.GetIntData('pos ionisable') and atom_end.GetIntData('neg ionisable') : IS_IONIC = 1
         elif atom_bgn.GetIntData('neg ionisable') and atom_end.GetIntData('pos ionisable'): IS_IONIC = 1
@@ -156,34 +156,34 @@ def is_ionic(atom_bgn, atom_end, distance):
     return IS_IONIC
 
 def is_metal_complex(atom_bgn, atom_end, distance):
-    '''
-    '''
+    """
+    """
     IS_METAL_COMPLEX = 0
-    
+
     if distance <= contact_types['metal']['distance']:
         if atom_bgn.GetIntData('hbond acceptor') and atom_end.IsMetal(): IS_METAL_COMPLEX = 1
         elif atom_end.GetIntData('hbond acceptor') and atom_bgn.IsMetal(): IS_METAL_COMPLEX = 1
-        
+
     return IS_METAL_COMPLEX
 
 def is_carbonyl(atom_bgn, atom_end, distance):
-    '''
-    '''
+    """
+    """
     if distance <= contact_types['carbonyl']['distance']:
         if atom_bgn.GetIntData('carbonyl oxygen') and atom_end.GetIntData('carbonyl carbon'): return 1
         elif atom_bgn.GetIntData('carbonyl carbon') and atom_end.GetIntData('carbonyl oxygen'): return 1
     return 0
 
 def is_aromatic(atom_bgn, atom_end, distance):
-    '''
-    '''
-    if atom_bgn.IsAromatic() and atom_end.IsAromatic() and distance <= contact_types['aromatic']['distance']:      
+    """
+    """
+    if atom_bgn.IsAromatic() and atom_end.IsAromatic() and distance <= contact_types['aromatic']['distance']:
         return 1
     return 0
 
 def is_hydrophobic(atom_bgn, atom_end, distance):
-    '''
-    '''
+    """
+    """
     if atom_bgn.GetIntData('hydrophobe') and atom_end.GetIntData('hydrophobe') and distance <= contact_types['hydrophobic']['distance']:
         return 1
     return 0

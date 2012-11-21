@@ -66,6 +66,7 @@ polypeptides = Table('polypeptides', metadata,
                      Column('is_enzyme', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_drug_target', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_in_uniprot', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('is_kinase', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      schema=schema)
 
 polypeptide_comments = {
@@ -77,8 +78,8 @@ polypeptide_comments = {
         "is_human": "True if the polypeptide is the product of a human gene.",
         "is_enzyme": "True if the mapped UniProt entry has an Enzyme Code (EC).",
         "is_drug_target": "True if the protein is a drug target in the ChEMBL database.",
-        "is_in_uniprot": "True if the polypeptide is part of the UniProt knowledgebase."
-        
+        "is_in_uniprot": "True if the polypeptide is part of the UniProt knowledgebase.",
+        "is_kinase": "True if the polypeptide is part of the UniProt human & mouse kinase collection."
     }
 }
 
@@ -102,7 +103,7 @@ oligonucleotide_comments = {
 
 comment_on_table_elements(oligonucleotides, oligonucleotide_comments)
 
-# 
+#
 polysaccharides = Table('polysaccharides', metadata,
                         Column('chain_id', Integer, primary_key=True, nullable=False),
                         schema=schema)

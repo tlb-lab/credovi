@@ -11,7 +11,7 @@ from credovi import app
 from credovi.schema import engine
 from credovi.util.timer import Timer
 from credovi.structbio import structure as struct
-from credovi.lib.openeye import mol_to_smiles, mol_to_oeb, mol_to_pdb
+from eyesopen.oechem import mol_to_smiles, mol_to_oeb, mol_to_pdb, mol_to_sdf
 from credovi.schema.tables.ligands import ligand_molstrings, ligand_usr
 
 def get_ligand_ids():
@@ -31,7 +31,7 @@ def get_ligand_ids():
                  ORDER BY 1,2,3,4
                 """)
 
-    result = engine.execute(statement, min_hvy_atoms=7).fetchall()
+    result = engine.execute(statement, min_hvy_atoms=0).fetchall()
 
     mapping = OrderedDict()
 
@@ -112,7 +112,7 @@ def do(controller):
                 entity_serial = ligand.GetIntData('entity_serial')
 
                 # ignore ligands that are too small
-                if OECount(ligand, OEIsHeavy()) < 7: continue
+                #if OECount(ligand, OEIsHeavy()) < 7: continue
 
                 # get the corresponding credo ligand identifier for this ligand
                 try: ligand_id = data[pdb][assembly_serial][entity_serial]
@@ -129,13 +129,14 @@ def do(controller):
                 ism = mol_to_smiles(ligand, from3d=True, isomeric=True, reset_charges=True)
                 pdbformat = mol_to_pdb(ligand)
                 oeb = mol_to_oeb(ligand)
+                sdf = mol_to_sdf(ligand)
 
                 if not args.dry_run:
 
                     # insert data into database
                     engine.execute(insert,
                                    ligand_id=ligand_id,
-                                   ism=ism, pdb=pdbformat, oeb=oeb)
+                                   ism=ism, pdb=pdbformat, oeb=oeb, sdf=sdf)
 
     if args.progressbar: bar.finish()
 
@@ -147,10 +148,11 @@ def do(controller):
                           INSERT INTO credo.ligand_usr
                             WITH moments AS
                                  (
-                                     SELECT lm.ligand_id, openeye.oeb_to_usr(oeb) as moments
+                                     SELECT lm.ligand_id, openeye.usrcat(oeb) as moments
                                        FROM credo.ligand_molstrings lm
+                                       JOIN credo.ligands l on l.ligand_id = lm.ligand_id
                                   LEFT JOIN credo.ligand_usr lu ON lu.ligand_id = lm.ligand_id
-                                      WHERE lu.ligand_id IS NULL
+                                      WHERE l.num_hvy_atoms >= 7 AND lu.ligand_id IS NULL
                                  )
                           SELECT ligand_id, cube(moments[1:12]), moments
                             FROM moments
