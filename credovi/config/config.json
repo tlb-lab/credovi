@@ -8,12 +8,12 @@
 
     "directories":
     {
-        "pdb": "/tlbnas/store/pdb/data/structures/divided/pdb",
+        "pdb": "/tlbnas/mirror/pdb/data/structures/divided/pdb",
         "quat_pdb": "/tlbnas/store/pdb/data/structures/assemblies/divided/pdb",
         "quat_oeb": "/tlbnas/store/pdb/data/structures/assemblies/divided/oeb",
         "quat_chains_oeb": "/tlbnas/store/pdb/data/structures/chains/divided/oeb",
         "asu_oeb": "",
-        "credo_data": "/merlin/Store/CREDO/data"
+        "credo_data": "/tlbnas/store/credo/data"
     },
 
     "log":

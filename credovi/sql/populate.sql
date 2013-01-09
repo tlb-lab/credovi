@@ -323,7 +323,7 @@ END$$;
 
         -- UPDATE PATHS OF AROMATIC RINGS
         UPDATE credo.aromatic_rings ar
-           SET path = r.path || ('AR:' || ring_number)::ptree
+           SET path = r.path || ('AR' || ring_number)::ptree
           FROM credo.residues r
          WHERE r.residue_id = ar.residue_id;
 

@@ -11,7 +11,6 @@ from .atoms import atoms
 from .contacts import contacts
 from .grooves import grooves, groove_residues
 from .ligands import (ligands, ligand_components, hetatms, ligand_molstrings,
-                      ligand_usr, binding_site_residues, binding_site_atom_surface_areas,
-                      binding_site_fuzcav)
-from .interfaces import interfaces, interface_residues, interface_atom_surface_areas
+                      ligand_usr, binding_site_residues, binding_site_fuzcav)
+from .interfaces import interfaces, interface_residues
 from .protfragments import prot_fragments, prot_fragment_residues

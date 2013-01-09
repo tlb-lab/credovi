@@ -64,26 +64,26 @@ interface_residue_comments = {
 
 comment_on_table_elements(interface_residues, interface_residue_comments)
 
-interface_atom_surface_areas = Table('interface_atom_surface_areas', metadata,
-                                     Column('interface_id', Integer, primary_key=True),
-                                     Column('atom_id', Integer, primary_key=True),
-                                     Column('asa_apo', Float(5,2)),
-                                     Column('asa_bound', Float(5,2)),
-                                     Column('asa_delta', Float(5,2)),
-                                     schema=schema)
-
-Index('idx_interface_atom_surface_areas_atom_id', interface_atom_surface_areas.c.atom_id)
-
-interface_atom_surface_area_comments = {
-    "table": "Solvent-accessible surface area changes for each atom in a protein-protein interface.",
-    "columns":
-    {
-        "interface_id": "Primary key of the interface.",
-        "atom_id": "Primary key of the atom that has a different solvent-exposed surface upon binding - can be a ligand or polymer atom.",
-        "asa_apo": "Solvent-accessible surface area of the atom in the apo state.",
-        "asa_bound": "Solvent-accessible surface area of the atom in the bound state.",
-        "asa_delta": "Change in solvent-accessible surface area between the apo and bound state."
-    }
-}
-
-comment_on_table_elements(interface_atom_surface_areas, interface_atom_surface_area_comments)
+#interface_atom_surface_areas = Table('interface_atom_surface_areas', metadata,
+#                                     Column('interface_id', Integer, primary_key=True),
+#                                     Column('atom_id', Integer, primary_key=True),
+#                                     Column('asa_apo', Float(5,2)),
+#                                     Column('asa_bound', Float(5,2)),
+#                                     Column('asa_delta', Float(5,2)),
+#                                     schema=schema)
+#
+#Index('idx_interface_atom_surface_areas_atom_id', interface_atom_surface_areas.c.atom_id)
+#
+#interface_atom_surface_area_comments = {
+#    "table": "Solvent-accessible surface area changes for each atom in a protein-protein interface.",
+#    "columns":
+#    {
+#        "interface_id": "Primary key of the interface.",
+#        "atom_id": "Primary key of the atom that has a different solvent-exposed surface upon binding - can be a ligand or polymer atom.",
+#        "asa_apo": "Solvent-accessible surface area of the atom in the apo state.",
+#        "asa_bound": "Solvent-accessible surface area of the atom in the bound state.",
+#        "asa_delta": "Change in solvent-accessible surface area between the apo and bound state."
+#    }
+#}
+#
+#comment_on_table_elements(interface_atom_surface_areas, interface_atom_surface_area_comments)

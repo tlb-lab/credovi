@@ -68,8 +68,8 @@ ligand_components = Table('ligand_components', metadata,
                           Column('het_id', String(3), nullable=False),
                           schema=schema)
 
-Index('idx_ligand_components_ligand_id', ligand_components.c.ligand_id)
-Index('idx_ligand_components_residue_id', ligand_components.c.residue_id, unique=True)
+Index('idx_ligand_components_ligand_id', ligand_components.c.ligand_id, ligand_components.c.residue_id, unique=True)
+Index('idx_ligand_components_residue_id', ligand_components.c.residue_id, ligand_components.c.ligand_id, unique=True)
 
 ligand_component_comments = {
     "table": "Contains the residues that a given ligand consists of.",
@@ -232,29 +232,66 @@ binding_site_residues_comments = {
 
 comment_on_table_elements(binding_site_residues, binding_site_residues_comments)
 
-binding_site_atom_surface_areas = Table('binding_site_atom_surface_areas', metadata,
-                                        Column('ligand_id', Integer, primary_key=True, autoincrement=False),
-                                        Column('atom_id', Integer, primary_key=True, autoincrement=False),
-                                        Column('asa_apo', Float(4,2)),
-                                        Column('asa_bound', Float(4,2)),
-                                        Column('asa_delta', Float(4,2)),
-                                        schema=schema)
+# interactions between ligands
+lig_lig_ints = Table('lig_lig_interactions', metadata,
+                     Column('lig_lig_interaction_id', Integer, primary_key=True),
+                     Column('biomolecule_id', Integer, nullable=False),
+                     Column('lig_bgn_id', Integer, nullable=False),
+                     Column('lig_end_id', Integer, nullable=False),
+                     Column('path', PTree, nullable=False),
+                     Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('is_homo_dimer', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('has_clash', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('has_product', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('has_substrate', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('has_drug_target_int', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('has_drug_like_ligands', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     schema=schema)
 
-Index('idx_binding_site_atom_surface_areas_atom_id', binding_site_atom_surface_areas.c.atom_id)
+Index('idx_lig_lig_interactions_biomolecule_id', lig_lig_ints.c.biomolecule_id)
+Index('idx_lig_lig_interactions_path', lig_lig_ints.c.path, postgresql_using='gist')
+Index('idx_lig_lig_interactions_lig_bgn_id', lig_lig_ints.c.lig_bgn_id)
+Index('idx_lig_lig_interactions_lig_end_id', lig_lig_ints.c.lig_end_id)
 
-binding_site_atom_surface_area_commnents = {
-    "table": "Solvent-accessible surface area changes for each atom in a binding site defined by a ligand.",
-    "columns":
-    {
-        "ligand_id": "Primary key of the ligand that defines this binding site.",
-        "atom_id": "Primary key of the atom that has a different solvent-exposed surface upon binding - can be a ligand or polymer atom.",
-        "asa_apo": "Solvent-accessible surface area of the atom in the apo state.",
-        "asa_bound": "Solvent-accessible surface area of the atom in the bound state.",
-        "asa_delta": "Change in solvent-accessible surface area between the apo and bound state."
-    }
-}
+# interactions between ligands and nucleic acids
+lig_nuc_ints = Table('lig_nuc_interactions', metadata,
+                     Column('lig_lig_interaction_id', Integer, primary_key=True),
+                     Column('biomolecule_id', Integer, nullable=False),
+                     Column('ligand_id', Integer, nullable=False),
+                     Column('chain_nuc_id', Integer, nullable=False),
+                     Column('path', PTree, nullable=False),
+                     Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     schema=schema)
 
-comment_on_table_elements(binding_site_atom_surface_areas, binding_site_atom_surface_area_commnents)
+Index('idx_lig_nuc_interactions_biomolecule_id', lig_nuc_ints.c.biomolecule_id)
+Index('idx_lig_nuc_interactions_path', lig_nuc_ints.c.path, postgresql_using='gist')
+Index('idx_lig_nuc_interactions_ligand_id', lig_nuc_ints.c.ligand_id)
+Index('idx_lig_nuc_interactions_chain_nuc_id', lig_nuc_ints.c.chain_nuc_id)
+
+#binding_site_atom_surface_areas = Table('binding_site_atom_surface_areas', metadata,
+#                                        Column('ligand_id', Integer, primary_key=True, autoincrement=False),
+#                                        Column('atom_id', Integer, primary_key=True, autoincrement=False),
+#                                        Column('asa_apo', Float(4,2)),
+#                                        Column('asa_bound', Float(4,2)),
+#                                        Column('asa_delta', Float(4,2)),
+#                                        schema=schema)
+#
+#Index('idx_binding_site_atom_surface_areas_atom_id', binding_site_atom_surface_areas.c.atom_id)
+#
+#binding_site_atom_surface_area_commnents = {
+#    "table": "Solvent-accessible surface area changes for each atom in a binding site defined by a ligand.",
+#    "columns":
+#    {
+#        "ligand_id": "Primary key of the ligand that defines this binding site.",
+#        "atom_id": "Primary key of the atom that has a different solvent-exposed surface upon binding - can be a ligand or polymer atom.",
+#        "asa_apo": "Solvent-accessible surface area of the atom in the apo state.",
+#        "asa_bound": "Solvent-accessible surface area of the atom in the bound state.",
+#        "asa_delta": "Change in solvent-accessible surface area between the apo and bound state."
+#    }
+#}
+
+#comment_on_table_elements(binding_site_atom_surface_areas, binding_site_atom_surface_area_commnents)
 
 # table containing the fuzcav fingerprint for all ligand-defined binding sites
 binding_site_fuzcav = Table('binding_site_fuzcav', metadata,
