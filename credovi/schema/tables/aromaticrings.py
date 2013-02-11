@@ -115,7 +115,7 @@ atom_ring_interactions = Table('atom_ring_interactions', metadata,
                                UniqueConstraint('aromatic_ring_id', 'atom_id', name='unique_interaction'),
                                schema=schema)
 
-Index('idx_ring_interactions_biomolecule_id', atom_ring_interactions.c.biomolecule_id)
+Index('idx_atom_ring_interactions_biomolecule_id', atom_ring_interactions.c.biomolecule_id)
 Index('idx_atom_ring_interactions_aromatic_ring_id', atom_ring_interactions.c.aromatic_ring_id)
 Index('idx_atom_ring_interactions_atom_id', atom_ring_interactions.c.atom_id)
 

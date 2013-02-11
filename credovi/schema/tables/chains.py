@@ -4,13 +4,14 @@ polymer type.
 """
 
 from sqlalchemy import Boolean, Column, Index, Integer, String, Table, Text, DefaultClause
+from sqlalchemy.schema import PrimaryKeyConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, DOUBLE_PRECISION
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
 
 chains = Table('chains', metadata,
-               Column('chain_id', Integer, primary_key=True),
+               Column('chain_id', Integer, nullable=False),
                Column('biomolecule_id', Integer, nullable=False),
                Column('pdb_chain_id', String(1), nullable=False), # CASE-SENSITIVE BY DEFAULT
                Column('pdb_chain_asu_id', String(1), nullable=False),
@@ -26,6 +27,7 @@ chains = Table('chains', metadata,
                Column('has_disordered_regions', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                schema=schema)
 
+PrimaryKeyConstraint(chains.c.chain_id, deferrable=True, initially='deferred')
 Index('idx_chains_biomolecule_id_pdb_chain_id', chains.c.biomolecule_id, chains.c.pdb_chain_id, unique=True)
 Index('idx_chains_biomolecule_id_pdb_chain_asu_id', chains.c.biomolecule_id, chains.c.pdb_chain_asu_id)
 Index('idx_chains_path', chains.c.path, postgresql_using='gist')
@@ -60,7 +62,7 @@ comment_on_table_elements(chains, chain_comments)
 
 # polypeptides are chains where the type in mmCIF is polypeptide
 polypeptides = Table('polypeptides', metadata,
-                     Column('chain_id', Integer, primary_key=True, nullable=False),
+                     Column('chain_id', Integer, nullable=False),
                      Column('is_wildtype', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_human', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_enzyme', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -68,6 +70,8 @@ polypeptides = Table('polypeptides', metadata,
                      Column('is_in_uniprot', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_kinase', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      schema=schema)
+
+PrimaryKeyConstraint(polypeptides.c.chain_id, deferrable=True, initially='deferred')
 
 polypeptide_comments = {
     "table": "Polypeptides are chains where the type in mmCIF is polypeptide.",
@@ -88,9 +92,11 @@ comment_on_table_elements(polypeptides, polypeptide_comments)
 # oligonucleotides are chains where the type in mmCIF is polyribonucleotide,
 # polydeoxyribonucleotide or a hybrid of both
 oligonucleotides = Table('oligonucleotides', metadata,
-                         Column('chain_id', Integer, primary_key=True, nullable=False),
+                         Column('chain_id', Integer, nullable=False),
                          Column('nucleic_acid_type', String(3)), # DNA/RNA/HYB
                          schema=schema)
+
+PrimaryKeyConstraint(oligonucleotides.c.chain_id, deferrable=True, initially='deferred')
 
 oligonucleotide_comments = {
     "table": "Oligonucleotides are chains where the type in mmCIF is polyribonucleotide, polydeoxyribonucleotide or a hybrid of both.",
@@ -105,8 +111,10 @@ comment_on_table_elements(oligonucleotides, oligonucleotide_comments)
 
 #
 polysaccharides = Table('polysaccharides', metadata,
-                        Column('chain_id', Integer, primary_key=True, nullable=False),
+                        Column('chain_id', Integer, nullable=False),
                         schema=schema)
+
+PrimaryKeyConstraint(polysaccharides.c.chain_id, deferrable=True, initially='deferred')
 
 polysaccharide_comments = {
     "table": "",

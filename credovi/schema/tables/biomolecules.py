@@ -1,10 +1,11 @@
 from sqlalchemy import Column, DefaultClause, Index, Integer, String, Table, DefaultClause
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
 
 biomolecules = Table('biomolecules', metadata,
-                     Column('biomolecule_id', Integer, primary_key=True),
+                     Column('biomolecule_id', Integer, nullable=False),
                      Column('structure_id', Integer, nullable=False),
                      Column('path', PTree, nullable=False),
                      Column('assembly_serial', Integer, nullable=False),
@@ -16,6 +17,7 @@ biomolecules = Table('biomolecules', metadata,
                      Column('num_atoms', Integer, DefaultClause('0'), nullable=False),
                      schema=schema)
 
+PrimaryKeyConstraint(biomolecules.c.biomolecule_id, deferrable=True, initially='deferred')
 Index('idx_biomolecules_structures_id', biomolecules.c.structure_id, biomolecules.c.assembly_serial, unique=True)
 Index('idx_biomolecules_path', biomolecules.c.path, postgresql_using='gist')
 

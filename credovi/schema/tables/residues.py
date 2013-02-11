@@ -7,13 +7,14 @@ the residues table.
 from sqlalchemy import (Boolean, CheckConstraint, Column, DDL, DefaultClause, Index,
                         Integer, String, Table, UniqueConstraint)
 from sqlalchemy.event import listen
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
 
 # residues master table (won't be empty!)
 residues = Table('residues', metadata,
-                 Column('residue_id', Integer, primary_key=True),
+                 Column('residue_id', Integer, nullable=False),
                  Column('biomolecule_id', Integer, nullable=False),
                  Column('chain_id', Integer, nullable=False),
                  Column('path', PTree, nullable=False),
@@ -25,6 +26,7 @@ residues = Table('residues', metadata,
                  Column('is_incomplete', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                  schema=schema)
 
+PrimaryKeyConstraint(residues.c.residue_id, deferrable=True, initially='deferred')
 Index('idx_residues_biomolecule_id', residues.c.biomolecule_id)
 Index('idx_residues_chain_id', residues.c.chain_id, residues.c.res_num, residues.c.ins_code)
 Index('idx_residues_path', residues.c.path, postgresql_using='gist')
@@ -54,7 +56,7 @@ comment_on_table_elements(residues, residue_comments)
 
 # polypeptide residues
 peptides = Table('peptides', metadata,
-                 Column('residue_id', Integer, primary_key=True),
+                 Column('residue_id', Integer, nullable=False),
                  Column('biomolecule_id', Integer, nullable=False),
                  Column('chain_id', Integer, nullable=False),
                  Column('path', PTree, nullable=False),
@@ -75,6 +77,7 @@ peptides = Table('peptides', metadata,
                  CheckConstraint("entity_type_bm = 32 OR entity_type_bm = 34"),
                  schema=schema)
 
+PrimaryKeyConstraint(peptides.c.residue_id, deferrable=True, initially='deferred')
 Index('idx_peptides_biomolecule_id', peptides.c.biomolecule_id)
 Index('idx_peptides_chain_id', peptides.c.chain_id, peptides.c.res_num, peptides.c.ins_code)
 Index('idx_peptides_res_map_id', peptides.c.res_map_id) # CANNOT BE UNIQUE!
@@ -132,7 +135,7 @@ comment_on_table_elements(peptides, peptide_comments)
 
 # dna/rna residues
 nucleotides = Table('nucleotides', metadata,
-                    Column('residue_id', Integer, primary_key=True),
+                    Column('residue_id', Integer, nullable=False),
                     Column('biomolecule_id', Integer, nullable=False),
                     Column('chain_id', Integer, nullable=False),
                     Column('path', PTree, nullable=False),
@@ -145,6 +148,7 @@ nucleotides = Table('nucleotides', metadata,
                     CheckConstraint("entity_type_bm = 8 OR entity_type_bm = 16 OR entity_type_bm = 24"),
                     schema=schema)
 
+PrimaryKeyConstraint(nucleotides.c.residue_id, deferrable=True, initially='deferred')
 Index('idx_nucleotides_biomolecule_id', nucleotides.c.biomolecule_id)
 Index('idx_nucleotides_chain_id', nucleotides.c.chain_id, nucleotides.c.res_num, nucleotides.c.ins_code)
 Index('idx_nucleotides_path', nucleotides.c.path, postgresql_using='gist')
@@ -190,7 +194,7 @@ comment_on_table_elements(nucleotides, nucleotide_comments)
 
 # saccharides
 saccharides = Table('saccharides', metadata,
-                    Column('residue_id', Integer, primary_key=True),
+                    Column('residue_id', Integer, nullable=False),
                     Column('biomolecule_id', Integer, nullable=False),
                     Column('chain_id', Integer, nullable=False),
                     Column('path', PTree, nullable=False),
@@ -203,6 +207,7 @@ saccharides = Table('saccharides', metadata,
                     CheckConstraint("entity_type_bm = 4"),
                     schema=schema)
 
+PrimaryKeyConstraint(saccharides.c.residue_id, deferrable=True, initially='deferred')
 Index('idx_saccharides_biomolecule_id', saccharides.c.biomolecule_id)
 Index('idx_saccharides_chain_id', saccharides.c.chain_id, saccharides.c.res_num, saccharides.c.ins_code)
 Index('idx_saccharides_path', saccharides.c.path, postgresql_using='gist')

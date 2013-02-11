@@ -1,6 +1,7 @@
 import json
 
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import create_engine, DDL, MetaData
+from sqlalchemy.event import listen
 
 from credovi import app
 
@@ -14,3 +15,6 @@ metadata = MetaData(bind=engine)
 schema = app.config.get('database','schema')
 
 from .tables import *
+
+listen(metadata, "after_create",
+       DDL("GRANT SELECT ON ALL TABLES IN SCHEMA {} TO credouser".format(schema)))

@@ -1,6 +1,6 @@
 from openeye.oechem import (OEGetBondiVdWRadius, OEGetAngle, OEGetDistance,
                             OEGetResidueIndex, OEGetSingleBondNeighbor, OEIsHydrogen,
-                            OEResidueIndex_HOH)
+                            OEResidueIndex_HOH, OEAtomGetResidue)
 
 from credovi import app
 
@@ -50,15 +50,17 @@ def is_hbond(structure, atom_bgn, atom_end, distance):
             IS_HBOND = 1
 
     # both atoms are not water
+    # we use the OR boolean expression to make sure that a found hydrogen bond
+    # is not overwritten by 0 again!
     else:
 
         # atom bgn is donor
         if atom_bgn.GetIntData('hbond donor') and atom_end.GetIntData('hbond acceptor'):
-            IS_HBOND = _is_hbond(atom_bgn, atom_end)
+            IS_HBOND = IS_HBOND or _is_hbond(atom_bgn, atom_end)
 
         # atom end is donor
-        elif atom_end.GetIntData('hbond donor') and atom_bgn.GetIntData('hbond acceptor'):
-            IS_HBOND = _is_hbond(atom_end, atom_bgn)
+        if atom_end.GetIntData('hbond donor') and atom_bgn.GetIntData('hbond acceptor'):
+            IS_HBOND = IS_HBOND or _is_hbond(atom_end, atom_bgn)
 
     return IS_HBOND
 
@@ -99,19 +101,19 @@ def is_weak_hbond(structure, atom_bgn, atom_end, distance):
 
     # ATOM IS ACCEPTOR / HETATM IS CARBON
     if (atom_bgn.GetIntData('hbond acceptor') and atom_end.GetIntData('weak hbond donor')):
-        IS_WEAK_HBOND = _is_weak_hbond(atom_end, atom_bgn)
+        IS_WEAK_HBOND = IS_WEAK_HBOND or _is_weak_hbond(atom_end, atom_bgn)
 
     # HETATM IS ACCEPTOR / ATOM IS CARBON
-    elif (atom_bgn.GetIntData('weak hbond donor') and atom_end.GetIntData('hbond acceptor')):
-        IS_WEAK_HBOND = _is_weak_hbond(atom_bgn, atom_end)
+    if (atom_bgn.GetIntData('weak hbond donor') and atom_end.GetIntData('hbond acceptor')):
+        IS_WEAK_HBOND = IS_WEAK_HBOND or _is_weak_hbond(atom_bgn, atom_end)
 
     # ATOM_BGN IS HALOGEN WEAK ACCEPTOR
-    elif atom_bgn.GetIntData('weak hbond acceptor') and atom_bgn.IsHalogen() and (atom_end.GetIntData('hbond donor') or atom_end.GetIntData('weak hbond donor')):
-        IS_WEAK_HBOND = _is_halogen_weak_hbond(atom_end, atom_bgn)
+    if atom_bgn.GetIntData('weak hbond acceptor') and atom_bgn.IsHalogen() and (atom_end.GetIntData('hbond donor') or atom_end.GetIntData('weak hbond donor')):
+        IS_WEAK_HBOND = IS_WEAK_HBOND or _is_halogen_weak_hbond(atom_end, atom_bgn)
 
     # ATOM_END IS HALOGEN WEAK ACCEPTOR
-    elif atom_end.GetIntData('weak hbond acceptor') and atom_end.IsHalogen() and (atom_bgn.GetIntData('hbond donor') or atom_bgn.GetIntData('weak hbond donor')):
-        IS_WEAK_HBOND = _is_halogen_weak_hbond(atom_bgn, atom_end)
+    if atom_end.GetIntData('weak hbond acceptor') and atom_end.IsHalogen() and (atom_bgn.GetIntData('hbond donor') or atom_bgn.GetIntData('weak hbond donor')):
+        IS_WEAK_HBOND = IS_WEAK_HBOND or _is_halogen_weak_hbond(atom_bgn, atom_end)
 
     return IS_WEAK_HBOND
 
@@ -137,10 +139,10 @@ def is_xbond(structure, atom_bgn, atom_end, distance, sum_vdw_radii):
 
     if distance <= sum_vdw_radii + VDW_COMP_FACTOR:
         if atom_bgn.GetIntData('xbond donor') and atom_end.GetIntData('xbond acceptor'):
-            IS_XBOND = _is_xbond(atom_bgn, atom_end)
+            IS_XBOND = IS_XBOND or _is_xbond(atom_bgn, atom_end)
 
-        elif atom_end.GetIntData('xbond donor') and atom_bgn.GetIntData('xbond acceptor'):
-            IS_XBOND = _is_xbond(atom_end, atom_bgn)
+        if atom_end.GetIntData('xbond donor') and atom_bgn.GetIntData('xbond acceptor'):
+            IS_XBOND = IS_XBOND or _is_xbond(atom_end, atom_bgn)
 
     return IS_XBOND
 

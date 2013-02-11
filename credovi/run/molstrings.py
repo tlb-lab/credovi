@@ -138,6 +138,12 @@ def do(controller):
                                    ligand_id=ligand_id,
                                    ism=ism, pdb=pdbformat, oeb=oeb, sdf=sdf)
 
+    # Update the SMILES strings of ligands in the ligand table
+    engine.execute("""UPDATE credo.ligands l
+                         SET ism = lm.ism
+                        FROM credo.ligand_molstrings lm
+                       WHERE lm.ligand_id = l.ligand_id""")
+
     if args.progressbar: bar.finish()
 
     # insert the USRCAT moments for the newly inserted ligand structures

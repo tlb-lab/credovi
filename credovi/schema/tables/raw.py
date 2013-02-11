@@ -31,6 +31,7 @@ raw_ligands = Table('raw_ligands', metadata,
                     Column('res_num', Integer),
                     Column('ligand_name', String(64), nullable=False),
                     Column('num_hvy_atoms', Integer),
+                    #Column('ism', Text),
                     schema=schema, prefixes=['unlogged'])
 
 # RAW ATOM TABLE

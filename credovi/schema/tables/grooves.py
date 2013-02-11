@@ -16,7 +16,8 @@ grooves = Table('grooves', metadata,
                 Column('num_res_prot', Integer, nullable=False),
                 Column('num_res_nuc', Integer, nullable=False),
                 Column('nucleic_acid_type', String(3), nullable=False), # DNA, RNA, HYB
-                Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                Column('has_incomplete_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                 schema=schema)
 
 Index('idx_grooves_chain_prot_id', grooves.c.chain_prot_id)

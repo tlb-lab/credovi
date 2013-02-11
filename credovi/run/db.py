@@ -95,14 +95,14 @@ def create(args):
                 app.close()
 
     elif args.tables:
-        for tablename in tablenames:
+        for tablename in args.tables.split(','):
             if tablename in metadata.tables:
                 table = metadata.tables[tablename]
                 table.drop(checkfirst=args.checkfirst)
                 table.create(checkfirst=args.checkfirst)
 
             else:
-                app.log.warn("cannot create table {0}: not defined in the current schema.")
+                app.log.warn("cannot create table {0}: not defined in the current schema.".format(tablename))
 
 def drop(args):
     """

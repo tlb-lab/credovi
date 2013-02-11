@@ -14,3 +14,4 @@ from .ligands import (ligands, ligand_components, hetatms, ligand_molstrings,
                       ligand_usr, binding_site_residues, binding_site_fuzcav)
 from .interfaces import interfaces, interface_residues
 from .protfragments import prot_fragments, prot_fragment_residues
+from .domains import domains

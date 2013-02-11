@@ -88,7 +88,8 @@ def write_ligands(ligands, pdb, biomolecule, writer):
 
         row = [pdb, biomolecule, ligand.GetIntData('entity_serial'),
                ligand.GetStringData('pdb_chain_id'), res_num,
-               ligand.GetStringData('name'), OECount(ligand, OEIsHeavy())]
+               ligand.GetStringData('name'), OECount(ligand, OEIsHeavy()),
+               mol_to_smiles(ligand, from3d=True, isomeric=True, reset_charges=True)]
 
         writer.writerow(row)
 

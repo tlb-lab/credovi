@@ -1,13 +1,14 @@
 from sqlalchemy import (Boolean, Column, DDL, DefaultClause, Float, Index, Integer,
                         LargeBinary, String, Table, Text)
 from sqlalchemy.event import listen
+from sqlalchemy.schema import PrimaryKeyConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, REAL
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import ArrayXi, Cube, PTree, comment_on_table_elements
 
 ligands = Table('ligands', metadata,
-                Column('ligand_id', Integer, primary_key=True),
+                Column('ligand_id', Integer),
                 Column('biomolecule_id', Integer, nullable=False),
                 Column('path', PTree, nullable=False),
                 Column('entity_serial', Integer, nullable=False),
@@ -15,7 +16,7 @@ ligands = Table('ligands', metadata,
                 Column('ligand_name', String(64), nullable=False),
                 Column('res_num', Integer),
                 Column('num_hvy_atoms', Integer),
-                Column('ism', Text, nullable=False),
+                Column('ism', Text),
                 Column('gini_index_contacts', Float(4,3)),
                 Column('is_at_identity', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                 Column('is_incomplete', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -28,6 +29,7 @@ ligands = Table('ligands', metadata,
                 Column('is_drug_target_int', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                 schema=schema)
 
+PrimaryKeyConstraint(ligands.c.ligand_id, deferrable=True, initially='deferred')
 Index('idx_ligands_biomolecule_id', ligands.c.biomolecule_id, ligands.c.entity_serial, unique=True)
 Index('idx_ligands_pdb', ligands.c.biomolecule_id, ligands.c.pdb_chain_id, ligands.c.res_num, ligands.c.ligand_name, unique=True)
 Index('idx_ligands_name', ligands.c.ligand_name, ligands.c.pdb_chain_id, ligands.c.res_num)
@@ -62,12 +64,13 @@ ligand_comments = {
 comment_on_table_elements(ligands, ligand_comments)
 
 ligand_components = Table('ligand_components', metadata,
-                          Column('ligand_component_id', Integer, primary_key=True),
+                          Column('ligand_component_id', Integer),
                           Column('ligand_id', Integer, nullable=False),
                           Column('residue_id', Integer, nullable=False),
                           Column('het_id', String(3), nullable=False),
                           schema=schema)
 
+PrimaryKeyConstraint(ligand_components.c.ligand_component_id, deferrable=True, initially='deferred')
 Index('idx_ligand_components_ligand_id', ligand_components.c.ligand_id, ligand_components.c.residue_id, unique=True)
 Index('idx_ligand_components_residue_id', ligand_components.c.residue_id, ligand_components.c.ligand_id, unique=True)
 
@@ -84,13 +87,75 @@ ligand_component_comments = {
 
 comment_on_table_elements(ligand_components, ligand_component_comments)
 
+ligand_fragments = Table('ligand_fragments', metadata,
+                         Column('ligand_fragment_id', Integer, nullable=False),
+                         Column('biomolecule_id', Integer, nullable=False),
+                         Column('ligand_id', Integer, nullable=False),
+                         Column('ligand_component_id', Integer, nullable=False),
+                         Column('fragment_id', Integer, nullable=False),
+                         Column('hit', Integer, nullable=False),
+                         Column('num_int_atoms', Integer),
+                         Column('num_contacts', Integer),
+                         Column('num_covalent', Integer),
+                         Column('num_vdw_clash', Integer),
+                         Column('num_vdw', Integer),
+                         Column('num_proximal', Integer),
+                         Column('num_hbond', Integer),
+                         Column('num_weak_hbond', Integer),
+                         Column('num_xbond', Integer),
+                         Column('num_ionic', Integer),
+                         Column('num_metal_complex', Integer),
+                         Column('num_aromatic', Integer),
+                         Column('num_hydrophobic', Integer),
+                         Column('num_carbonyl', Integer),
+                         Column('fcd', Float(5,3)),
+                         Column('fad', Float(5,3)),
+                         Column('is_root', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                         Column('is_interacting', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                         schema=schema)
+
+PrimaryKeyConstraint(ligand_fragments.c.ligand_fragment_id, deferrable=True, initially='deferred')
+Index('idx_ligand_fragments_biomolecule_id', ligand_fragments.c.biomolecule_id)
+Index('idx_ligand_fragments_ligand_id', ligand_fragments.c.ligand_id)
+Index('idx_ligand_fragments_ligand_component_id', ligand_fragments.c.ligand_component_id)
+Index('idx_ligand_fragments_fragment_id', ligand_fragments.c.ligand_fragment_id, ligand_fragments.c.hit)
+
+ligand_fragment_comments = {
+    "table": "ligand fragments are the result of mapping the RECAP fragments of chemical components onto ligands and their atoms.",
+    "columns":
+    {
+        "ligand_fragment_id": "Primary key of the ligand fragment.",
+        "biomolecule_id": "Primary key of the parent biomolecule.",
+        "ligand_id": "Primary key of the parent ligand.",
+        "residue_id": "Primary key of the parent ligand component.",
+        "fragment_id": "Primary key of the fragment that was mapped to create the ligand fragment.",
+        "hit": "Hit number of the fragment; sometimes a fragment can be found more than once in a ligand."
+    }
+}
+
+comment_on_table_elements(ligand_fragments, ligand_fragment_comments)
+
+ligand_fragment_atoms = Table('ligand_fragment_atoms', metadata,
+                              Column('ligand_fragment_atom_id', Integer, nullable=False),
+                              Column('ligand_id', Integer, nullable=False),
+                              Column('ligand_fragment_id', Integer, nullable=False),
+                              Column('atom_id', Integer, nullable=False),
+                              schema=schema)
+
+PrimaryKeyConstraint(ligand_fragment_atoms.c.ligand_fragment_atom_id, deferrable=True, initially='deferred')
+Index('idx_ligand_fragment_atoms_ligand_fragment_id', ligand_fragment_atoms.c.ligand_fragment_id, ligand_fragment_atoms.c.atom_id, unique=True)
+Index('idx_ligand_fragment_atoms_ligand_id', ligand_fragment_atoms.c.ligand_id)
+Index('idx_ligand_fragment_atoms_atom_id', ligand_fragment_atoms.c.atom_id)
+
 ligand_molstrings = Table('ligand_molstrings', metadata,
-                          Column('ligand_id', Integer, primary_key=True, nullable=False, autoincrement=False),
+                          Column('ligand_id', Integer, nullable=False, autoincrement=False),
                           Column('ism', Text, nullable=False),
                           Column('pdb', Text, nullable=False),
                           Column('sdf', Text, nullable=False),
                           Column('oeb', LargeBinary, nullable=False),
                           schema=schema)
+
+PrimaryKeyConstraint(ligand_molstrings.c.ligand_id, deferrable=True, initially='deferred')
 
 ligand_molstring_comments = {
     "table": "Contains the chemical structures of all ligands with at least 7 heavy atoms in various formats.",
@@ -107,10 +172,12 @@ ligand_molstring_comments = {
 comment_on_table_elements(ligand_molstrings, ligand_molstring_comments)
 
 ligand_usr = Table('ligand_usr', metadata,
-                   Column('ligand_id', Integer, primary_key=True, nullable=False, autoincrement=False),
+                   Column('ligand_id', Integer, nullable=False, autoincrement=False),
                    Column('usr_space', Cube, nullable=False),
                    Column('usr_moments', ARRAY(Float, dimensions=1), nullable=False),
                    schema=schema)
+
+PrimaryKeyConstraint(ligand_usr.c.ligand_id, deferrable=True, initially='deferred')
 
 # create gist index on n-dimensional space
 Index ('idx_ligand_usr_usr_space', ligand_usr.c.usr_space, postgresql_using='gist')
@@ -190,7 +257,7 @@ binding_sites = Table('binding_sites', metadata,
                       Column('scop_pxs', ARRAY(String, dimensions=1)),
                       Column('hom_superfam', Text),
                       Column('hom_superfam_label', Text),
-                      Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                      Column('has_incomplete_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       Column('has_non_std_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       Column('has_mod_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       Column('has_mut_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -206,7 +273,7 @@ binding_sites_comments = {
         "cath_dmns": "Array of cath domains that are mapped onto this binding site.",
         "scop_pxs": "Array of SCOP px identifiers that are mapped onto this binding site.",
         "is_mutated": "True if at least one amino acid differs from the canonical UniProt sequence.",
-        "has_missing_atoms": "True if at least one amino acid that is part if this binding site has missing atoms.",
+        "has_incomplete_res": "True if at least one amino acid that is part if this binding site has missing atoms.",
         "has_mapped_var": "True if at least one residue can be linked to a variation.",
         "is_kinase": "True if the binding site polypeptide is part of the UniProt human & mouse kinase collection."
     }
@@ -232,13 +299,20 @@ binding_site_residues_comments = {
 
 comment_on_table_elements(binding_site_residues, binding_site_residues_comments)
 
+binding_site_domains = Table('binding_site_domains', metadata,
+                              Column('ligand_id', Integer, primary_key=True, autoincrement=False, nullable=False),
+                              Column('domain_id', Integer, primary_key=True, autoincrement=False, nullable=False),
+                              schema=schema)
+
+Index('idx_binding_site_domains_domain_id', binding_site_domains.c.domain_id, binding_site_domains.c.ligand_id, unique=True)
+
 # interactions between ligands
 lig_lig_ints = Table('lig_lig_interactions', metadata,
                      Column('lig_lig_interaction_id', Integer, primary_key=True),
                      Column('biomolecule_id', Integer, nullable=False),
                      Column('lig_bgn_id', Integer, nullable=False),
                      Column('lig_end_id', Integer, nullable=False),
-                     Column('path', PTree, nullable=False),
+                     Column('path', PTree),
                      Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_homo_dimer', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -256,11 +330,11 @@ Index('idx_lig_lig_interactions_lig_end_id', lig_lig_ints.c.lig_end_id)
 
 # interactions between ligands and nucleic acids
 lig_nuc_ints = Table('lig_nuc_interactions', metadata,
-                     Column('lig_lig_interaction_id', Integer, primary_key=True),
+                     Column('lig_nuc_interaction_id', Integer, primary_key=True),
                      Column('biomolecule_id', Integer, nullable=False),
                      Column('ligand_id', Integer, nullable=False),
                      Column('chain_nuc_id', Integer, nullable=False),
-                     Column('path', PTree, nullable=False),
+                     Column('path', PTree),
                      Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      schema=schema)
 

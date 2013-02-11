@@ -2,12 +2,13 @@
 """
 
 from sqlalchemy import Boolean, Column, DefaultClause, Float, Index, Integer, Table
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
 
 interfaces = Table('interfaces', metadata,
-                   Column('interface_id', Integer, primary_key=True),
+                   Column('interface_id', Integer, nullable=False),
                    Column('biomolecule_id', Integer, nullable=False),
                    Column('chain_bgn_id', Integer, nullable=False),
                    Column('chain_end_id', Integer, nullable=False),
@@ -15,10 +16,13 @@ interfaces = Table('interfaces', metadata,
                    Column('num_res_bgn', Integer, nullable=False),
                    Column('num_res_end', Integer, nullable=False),
                    Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                   Column('has_incomplete_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                   Column('has_non_std_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                    Column('has_mod_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                   Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                   Column('has_mut_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                    schema=schema)
 
+PrimaryKeyConstraint(interfaces.c.interface_id, deferrable=True, initially='deferred')
 Index('idx_interfaces_chain_bgn_id', interfaces.c.chain_bgn_id, interfaces.c.chain_end_id, unique=True)
 Index('idx_interfaces_chain_end_id', interfaces.c.chain_end_id, interfaces.c.chain_bgn_id, unique=True)
 Index('idx_interfaces_path', interfaces.c.path, postgresql_using='gist')
@@ -43,11 +47,13 @@ interface_comments = {
 comment_on_table_elements(interfaces, interface_comments)
 
 interface_residues = Table('interface_residues', metadata,
-                           Column('interface_id', Integer, autoincrement=False, primary_key=True),
-                           Column('residue_bgn_id', Integer, autoincrement=False, primary_key=True),
-                           Column('residue_end_id', Integer, autoincrement=False, primary_key=True),
+                           Column('interface_id', Integer, autoincrement=False),
+                           Column('residue_bgn_id', Integer, autoincrement=False),
+                           Column('residue_end_id', Integer, autoincrement=False),
                            schema=schema)
 
+PrimaryKeyConstraint(interface_residues.c.interface_id, interface_residues.c.residue_bgn_id,
+                     interface_residues.c.residue_end_id, deferrable=True, initially='deferred')
 Index('idx_interface_residues_residue_bgn_id', interface_residues.c.residue_bgn_id)
 Index('idx_interface_residues_residue_end_id', interface_residues.c.residue_end_id)
 

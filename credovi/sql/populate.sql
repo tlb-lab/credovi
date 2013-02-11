@@ -152,6 +152,7 @@ DO $$
         END LOOP;
 END$$;
 
+            -- has to done separately because rare atom names could cause syntax errors
             DO $$
                 DECLARE
                     biomol_id INTEGER;
@@ -161,7 +162,7 @@ END$$;
                                      ORDER BY 1
                     LOOP
                         BEGIN
-                             EXECUTE
+                            EXECUTE
                             '
                             UPDATE credo.atoms a
                                SET path = CASE WHEN a.alt_loc = '' '' THEN r.path || a.atom_name
@@ -221,7 +222,7 @@ END$$;
 
 -- INSERT LIGANDS
   INSERT INTO credo.ligands(biomolecule_id, path, entity_serial, pdb_chain_id, res_num,
-                            ligand_name, num_hvy_atoms)
+                            ligand_name, num_hvy_atoms, ism)
   SELECT DISTINCT b.biomolecule_id,
                   -- PTREE LABEL
                   b.path ||
@@ -231,7 +232,7 @@ END$$;
                    COALESCE('`' || rw.res_num, '')
                   )::ptree,
                   entity_serial, rw.pdb_chain_id, rw.res_num,
-                  rw.ligand_name, rw.num_hvy_atoms
+                  rw.ligand_name, rw.num_hvy_atoms, rw.ism
     FROM credo.structures s
     JOIN credo.biomolecules b ON b.structure_id = s.structure_id
     JOIN credo.raw_ligands rw
@@ -375,42 +376,18 @@ ORDER BY aromatic_ring_id, atom_id;
     WHERE lc.ligand_id > (SELECT COALESCE(MAX(ligand_id),0) FROM credo.hetatms);
 
 -- BINDING SITE RESIDUES
-DO $$
-    DECLARE
-        biomol_id INTEGER;
-    BEGIN
-        FOR biomol_id IN   SELECT DISTINCT biomolecule_id
-                             FROM credo.ligands
-                             LEFT JOIN credo.binding_site_residues bs USING(ligand_id)
-                            WHERE bs.ligand_id IS NULL
-                         ORDER BY 1
-        LOOP
-            EXECUTE
-            '
-              INSERT INTO credo.binding_site_residues
-              SELECT h.ligand_id, r.residue_id, r.entity_type_bm
-                FROM credo.hetatms h
-                JOIN credo.contacts cs on h.atom_id = cs.atom_bgn_id
-                JOIN credo.atoms a on cs.atom_end_id = a.atom_id
-                JOIN credo.residues r ON r.residue_id = a.residue_id
-               WHERE a.biomolecule_id = cs.biomolecule_id
-                     AND cs.is_same_entity = false
-                     AND a.biomolecule_id = $1
-               UNION
-              SELECT h.ligand_id, r.residue_id, r.entity_type_bm
-                FROM credo.hetatms h
-                JOIN credo.contacts cs on h.atom_id = cs.atom_end_id
-                JOIN credo.atoms a on cs.atom_bgn_id = a.atom_id
-                JOIN credo.residues r ON r.residue_id = a.residue_id
-               WHERE a.biomolecule_id = cs.biomolecule_id
-                     AND cs.is_same_entity = false
-                     AND a.biomolecule_id = $1
-            ORDER BY 1,2;
-            ' USING biomol_id;
+  INSERT INTO credo.binding_site_residues
+  SELECT DISTINCT lc.ligand_id, rp.residue_end_id, entity_type_bm
+    FROM credo.residue_interaction_pairs rp
+    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_bgn_id
+    JOIN credo.residues r ON r.residue_id = rp.residue_end_id
+   UNION
+  SELECT DISTINCT lc.ligand_id, rp.residue_bgn_id, entity_type_bm
+    FROM credo.residue_interaction_pairs rp
+    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_end_id
+    JOIN credo.residues r ON r.residue_id = rp.residue_bgn_id
+ORDER BY 1,2,3;
 
-            RAISE NOTICE 'inserted binding sites for biomolecule %', biomol_id;
-        END LOOP;
-END$$;
 
 -- CALCULATE RING INTERACTIONS
   INSERT INTO credo.ring_interactions(biomolecule_id,
@@ -766,31 +743,83 @@ WHERE       a.residue_id = r.residue_id AND a.alt_loc != ' ' AND a.biomolecule_i
 -- UPDATE INCOMPLETE RESIDUES
 DO $$
     DECLARE
+        chn_id INTEGER;
         biomol_id INTEGER;
     BEGIN
-        FOR biomol_id IN  SELECT biomolecule_id FROM credo.biomolecules ORDER BY 1
+        FOR chn_id, biomol_id IN  SELECT chain_id, biomolecule_id FROM credo.chains ORDER BY 1
         LOOP
 
             EXECUTE
             '
-            UPDATE credo.residues r
+            UPDATE ONLY credo.residues r
                SET is_incomplete = true
               FROM (
                       SELECT r.residue_id
-                        FROM credo.residues r
+                        FROM ONLY credo.residues r
                         JOIN credo.atoms a ON a.residue_id = r.residue_id
                         JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
-                       WHERE a.biomolecule_id = $1
+                       WHERE r.chain_id = $1 AND a.biomolecule_id = $2
                              AND a.alt_loc = '' ''
-                    GROUP BY r.residue_id, cc.num_hvy_atoms
+                    GROUP BY r.residue_id, r.entity_type_bm, cc.num_hvy_atoms
+                      HAVING COUNT(a.atom_id) < cc.num_hvy_atoms
+                   ) sq
+             WHERE r.residue_id = sq.residue_id;
+            ' USING chn_id, biomol_id;
+
+            EXECUTE
+            '
+            UPDATE ONLY credo.peptides r
+               SET is_incomplete = true
+              FROM (
+                      SELECT r.residue_id
+                        FROM ONLY credo.peptides r
+                        JOIN credo.atoms a ON a.residue_id = r.residue_id
+                        JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
+                       WHERE r.chain_id = $1 AND a.biomolecule_id = $2
+                             AND a.alt_loc = '' ''
+                    GROUP BY r.residue_id, r.entity_type_bm, cc.num_hvy_atoms
                       HAVING COUNT(a.atom_id) < CASE WHEN r.entity_type_bm & 32 > 0 THEN cc.num_hvy_atoms - 1
                                                      ELSE cc.num_hvy_atoms
                                                 END
                    ) sq
              WHERE r.residue_id = sq.residue_id;
-            ' USING biomol_id;
+            ' USING chn_id, biomol_id;
 
-            RAISE NOTICE 'updated incomplete residues for biomolecule %', biomol_id;
+            EXECUTE
+            '
+            UPDATE ONLY credo.nucleotides r
+               SET is_incomplete = true
+              FROM (
+                      SELECT r.residue_id
+                        FROM ONLY credo.nucleotides r
+                        JOIN credo.atoms a ON a.residue_id = r.residue_id
+                        JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
+                       WHERE r.chain_id = $1 AND a.biomolecule_id = $2
+                             AND a.alt_loc = '' ''
+                    GROUP BY r.residue_id, r.entity_type_bm, cc.num_hvy_atoms
+                      HAVING COUNT(a.atom_id) < cc.num_hvy_atoms
+                   ) sq
+             WHERE r.residue_id = sq.residue_id;
+            ' USING chn_id, biomol_id;
+
+            EXECUTE
+            '
+            UPDATE ONLY credo.saccharides r
+               SET is_incomplete = true
+              FROM (
+                      SELECT r.residue_id
+                        FROM ONLY credo.saccharides r
+                        JOIN credo.atoms a ON a.residue_id = r.residue_id
+                        JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
+                       WHERE r.chain_id = $1 AND a.biomolecule_id = $2
+                             AND a.alt_loc = '' ''
+                    GROUP BY r.residue_id, r.entity_type_bm, cc.num_hvy_atoms
+                      HAVING COUNT(a.atom_id) < cc.num_hvy_atoms
+                   ) sq
+             WHERE r.residue_id = sq.residue_id;
+            ' USING chn_id, biomol_id;
+
+            RAISE NOTICE 'updated incomplete residues for chain %', chn_id;
         END LOOP;
 END$$;
 
@@ -927,81 +956,6 @@ FROM        (
             WHERE   rank = 1
             ) sq
 WHERE       sq.ring_interaction_id = ri.ring_interaction_id;
-
--- UPDATE SECONDARY CONTACTS
-DO $$
-    DECLARE
-        biomol_id INTEGER;
-    BEGIN
-        -- LOOP THROUGH ALL BIOMOLECULES
-        FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
-                          --WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0)
-                          --                          FROM credo.contacts)
-                         ORDER BY 1
-        LOOP
-            -- INSERT CONTACTS
-            EXECUTE
-                '
-                UPDATE      credo.contacts cs
-                SET         is_secondary = true
-                FROM        (
-                            SELECT  cs.contact_id
-                            FROM    credo.contacts cs
-                                    -- GET THE COORDINATES OF BOTH ATOMS THAT FORM THIS CONTACT PAIR
-                            JOIN    credo.atoms A
-                                    ON A.atom_id = cs.atom_bgn_id
-                                    AND A.biomolecule_id = cs.biomolecule_id
-                            JOIN    credo.atoms B
-                                    ON B.atom_id = cs.atom_end_id
-                                    AND B.biomolecule_id = cs.biomolecule_id
-                                    -- GET ALL POSSIBLE THIRD ATOMS THAT ARE IN CONTACT WITH THE FIRST ATOM (BUT NOT SAME RESIDUE!)
-                            JOIN    credo.contacts cs2
-                                    ON cs2.atom_bgn_id = A.atom_id
-                                    AND cs2.biomolecule_id = A.biomolecule_id
-                            JOIN    credo.atoms C
-                                    ON C.atom_id = cs2.atom_end_id
-                                    AND C.biomolecule_id = A.biomolecule_id
-                            WHERE   B.atom_id != C.atom_id
-                                    -- THE THIRD ATOM HAS TO BE CLOSER TO THE FIRST
-                                    AND cs2.distance < cs.distance
-                                    -- THE DISTANCE BETWEEN THE SECOND AND THIRD HAS TO BE SMALLER THAN THE DISTANCE BETWEEN FIRST AND SECOND
-                                    AND (B.coords -> C.coords) < cs.distance
-                                    -- THE TRIANGLE HEIGHT
-                                    AND cos_triangle_height(B.coords -> C.coords, cs2.distance, cs.distance) <= 1.2
-                                    AND A.biomolecule_id = $1
-                            UNION
-                            SELECT  cs.contact_id
-                            FROM    credo.contacts cs
-                                    -- GET THE COORDINATES OF BOTH ATOMS THAT FORM THIS CONTACT PAIR
-                            JOIN    credo.atoms A
-                                    ON A.atom_id = cs.atom_end_id
-                                    AND A.biomolecule_id = cs.biomolecule_id
-                            JOIN    credo.atoms B
-                                    ON B.atom_id = cs.atom_bgn_id
-                                    AND B.biomolecule_id = cs.biomolecule_id
-                                    -- GET ALL POSSIBLE THIRD ATOMS THAT ARE IN CONTACT WITH THE FIRST ATOM (BUT NOT SAME RESIDUE!)
-                            JOIN    credo.contacts cs2
-                                    ON cs2.atom_end_id = A.atom_id
-                                    AND cs2.biomolecule_id = A.biomolecule_id
-                            JOIN    credo.atoms C
-                                    ON C.atom_id = cs2.atom_bgn_id
-                                    AND C.biomolecule_id = A.biomolecule_id
-                            WHERE   B.atom_id != C.atom_id
-                                    -- THE THIRD ATOM HAS TO BE CLOSER TO THE FIRST
-                                    AND cs2.distance < cs.distance
-                                    -- THE DISTANCE BETWEEN THE SECOND AND THIRD HAS TO BE SMALLER THAN THE DISTANCE BETWEEN FIRST AND SECOND
-                                    AND (B.coords -> C.coords) < cs.distance
-                                    -- THE TRIANGLE HEIGHT
-                                    AND cos_triangle_height(B.coords -> C.coords, cs2.distance, cs.distance) <= 1.2
-                                    AND A.biomolecule_id = $1
-                            ) rs
-                WHERE       rs.contact_id = cs.contact_id AND cs.biomolecule_id = $1;
-                ' USING biomol_id;
-
-            RAISE NOTICE 'Updated secondary contacts for Biomolecule %', biomol_id;
-        END LOOP;
-END$$;
 
 /*
 This anonymous code block updates the Gini coefficient based on the number of atoms that are in contact

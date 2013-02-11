@@ -1,11 +1,12 @@
 from sqlalchemy import Column, Date, Float, Index, Integer, String, Table, Text
+from sqlalchemy.schema import PrimaryKeyConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, VARCHAR
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import comment_on_table_elements
 
 structures = Table('structures', metadata,
-                    Column('structure_id', Integer, primary_key=True),
+                    Column('structure_id', Integer, nullable=False),
                     Column('pdb', String(4), nullable=False),
                     Column('title', Text),
                     Column('authors', Text),
@@ -21,6 +22,7 @@ structures = Table('structures', metadata,
                     Column('num_biomolecules', Integer),
                     schema=schema)
 
+PrimaryKeyConstraint(structures.c.structure_id, deferrable=True, initially='deferred')
 Index('idx_structures_pdb', structures.c.pdb, unique=True)
 
 comments = {
