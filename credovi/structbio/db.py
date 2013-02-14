@@ -174,11 +174,13 @@ def get_pisa_data(pdb):
                     pisa[set_serial][assembly_serial][pdb_chain_id][operation_serial] = details
 
     # debug assembly information
-    app.log.debug("PISA predicts {0} assembly/assemblies.".format(max(pisa[1].keys())))
+    app.log.debug("PISA predicts {0} assembly/assemblies."
+                  .format(max(pisa[1].keys())))
 
     # do not return pisa data for large assemblies / asu will be used instead
     if ASSEMBLY_TOO_LARGE:
-        app.log.warn("At least one of the predicted assemblies is too large - the asymmetric unit will be used instead.")
+        app.log.warn("At least one of the predicted assemblies is too large - "
+                     "the asymmetric unit will be used instead.")
         pisa = {}
 
     return pisa
