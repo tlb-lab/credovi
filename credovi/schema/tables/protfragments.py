@@ -3,12 +3,13 @@
 
 from sqlalchemy import Column, DefaultClause, Float, Index, Integer, String, Table, Text
 from sqlalchemy.sql import func
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
 
 prot_fragments = Table('prot_fragments', metadata,
-                       Column('prot_fragment_id', Integer, primary_key=True),
+                       Column('prot_fragment_id', Integer, nullable=False),
                        Column('biomolecule_id', Integer, nullable=False),
                        Column('chain_id', Integer, nullable=False),
                        Column('path', PTree),
@@ -21,10 +22,11 @@ prot_fragments = Table('prot_fragments', metadata,
                        Column('completeness', Float(3,2), DefaultClause('0'), nullable=False),
                        schema=schema)
 
+PrimaryKeyConstraint(prot_fragments.c.prot_fragment_id, deferrable=True, initially='deferred')
 Index('idx_prot_fragments_biomolecule_id', prot_fragments.c.biomolecule_id)
 Index('idx_prot_fragments_chain', prot_fragments.c.chain_id, prot_fragments.c.sstruct_serial, unique=True)
 Index('idx_prot_fragments_path', prot_fragments.c.path, postgresql_using='gist')
-Index('idx_prot_fragments_seq', prot_fragments.c.fragment_seq, postgresql_where=func.length(prot_fragments.c.fragment_seq) >= 5)
+Index('idx_prot_fragments_seq', prot_fragments.c.fragment_seq)
 
 prot_fragment_comments = {
     "table": "Contains information about secondary structure fragments in proteins.",
@@ -47,10 +49,13 @@ prot_fragment_comments = {
 comment_on_table_elements(prot_fragments, prot_fragment_comments)
 
 prot_fragment_residues = Table('prot_fragment_residues', metadata,
-                               Column('prot_fragment_id', Integer, primary_key=True),
-                               Column('residue_id', Integer, primary_key=True),
+                               Column('prot_fragment_id', Integer, nullable=False),
+                               Column('residue_id', Integer, nullable=False),
                                schema=schema)
 
+PrimaryKeyConstraint(prot_fragment_residues.c.prot_fragment_id,
+                     prot_fragment_residues.c.residue_id, deferrable=True,
+                     initially='deferred')
 Index('idx_prot_fragment_residues_residue_id', prot_fragment_residues.c.residue_id)
 
 prot_fragment_residue_comments = {

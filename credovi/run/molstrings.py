@@ -22,16 +22,16 @@ def get_ligand_ids():
     """
     statement = text("""
                    SELECT s.pdb, b.assembly_serial, l.entity_serial, l.ligand_id
-                     FROM credo.ligands l
-                     JOIN credo.biomolecules b USING(biomolecule_id)
-                     JOIN credo.structures s USING(structure_id)
-                LEFT JOIN credo.ligand_molstrings lm USING(ligand_id)
+                     FROM {schema}.ligands l
+                     JOIN {schema}.biomolecules b USING(biomolecule_id)
+                     JOIN {schema}.structures s USING(structure_id)
+                LEFT JOIN {schema}.ligand_molstrings lm USING(ligand_id)
                     WHERE lm.ligand_id IS NULL
                           AND l.num_hvy_atoms >= :min_hvy_atoms
                  ORDER BY 1,2,3,4
-                """)
+                """.format(schema=app.config.get('database','schema')))
 
-    result = engine.execute(statement, min_hvy_atoms=0).fetchall()
+    result = engine.execute(statement, min_hvy_atoms=5).fetchall()
 
     mapping = OrderedDict()
 
@@ -112,7 +112,7 @@ def do(controller):
                 entity_serial = ligand.GetIntData('entity_serial')
 
                 # ignore ligands that are too small
-                #if OECount(ligand, OEIsHeavy()) < 7: continue
+                if OECount(ligand, OEIsHeavy()) < 5: continue
 
                 # get the corresponding credo ligand identifier for this ligand
                 try: ligand_id = data[pdb][assembly_serial][entity_serial]
@@ -138,12 +138,6 @@ def do(controller):
                                    ligand_id=ligand_id,
                                    ism=ism, pdb=pdbformat, oeb=oeb, sdf=sdf)
 
-    # Update the SMILES strings of ligands in the ligand table
-    engine.execute("""UPDATE credo.ligands l
-                         SET ism = lm.ism
-                        FROM credo.ligand_molstrings lm
-                       WHERE lm.ligand_id = l.ligand_id""")
-
     if args.progressbar: bar.finish()
 
     # insert the USRCAT moments for the newly inserted ligand structures
@@ -151,21 +145,35 @@ def do(controller):
 
         # insert usr moments for all ligands
         engine.execute("""
-                          INSERT INTO credo.ligand_usr
+                          INSERT INTO {schema}.ligand_usr
                             WITH moments AS
                                  (
                                      SELECT lm.ligand_id, openeye.usrcat(oeb) as moments
-                                       FROM credo.ligand_molstrings lm
-                                       JOIN credo.ligands l on l.ligand_id = lm.ligand_id
-                                  LEFT JOIN credo.ligand_usr lu ON lu.ligand_id = lm.ligand_id
+                                       FROM {schema}.ligand_molstrings lm
+                                       JOIN {schema}.ligands l on l.ligand_id = lm.ligand_id
+                                  LEFT JOIN {schema}.ligand_usr lu ON lu.ligand_id = lm.ligand_id
                                       WHERE l.num_hvy_atoms >= 7 AND lu.ligand_id IS NULL
                                  )
                           SELECT ligand_id, cube(moments[1:12]), moments
                             FROM moments
                         ORDER BY 1
-                       """)
+                       """.format(schema=app.config.get('database','schema')))
 
         app.log.debug("inserted USRCAT moments.")
 
+         # insert usr moments for all ligands
+        engine.execute("""
+                         UPDATE {schema}.ligand_usr lu
+                            SET npr1 = (sq.nprs).npr1, npr2 = (sq.nprs).npr2
+                           FROM (
+                                 SELECT ligand_id, openeye.nprs(oeb) as nprs
+                                   FROM {schema}.ligand_molstrings lm
+                                ) sq
+                          WHERE sq.ligand_id = lu.ligand_id;
+                       """.format(schema=app.config.get('database','schema')))
+
+        app.log.debug("Updated NPRs.")
+
         # cluster table using the gist index
-        engine.execute("CLUSTER credo.ligand_usr")
+        engine.execute("CLUSTER {schema}.ligand_usr"
+                       .format(schema=app.config.get('database','schema')))

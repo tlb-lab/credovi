@@ -7,7 +7,9 @@ DO $$
         -- LOOP THROUGH ALL LIGANDS THAT DO NOT HAVE CLASHES AND ARE NOT DISORDERED
         FOR lig_id, biomol_id IN   SELECT ligand_id, biomolecule_id
                                      FROM credo.ligands
-                                    WHERE is_disordered = false AND is_clashing = false
+                                    WHERE is_disordered = false
+                                          -- no peptide ligands
+                                          AND res_num IS NOT NULL
                                  ORDER BY 1
         LOOP
             EXECUTE
@@ -16,7 +18,8 @@ DO $$
                  (
                      INSERT INTO credo.ligand_fragments(biomolecule_id, ligand_id, ligand_component_id, fragment_id, hit)
                      SELECT DISTINCT r.biomolecule_id, lc.ligand_id, lc.ligand_component_id, fragment_id, hit
-                       FROM credo.ligand_components lc
+                       FROM credo.ligands l
+                       JOIN credo.ligand_components lc ON l.ligand_id = lc.ligand_id
                        JOIN credo.residues r ON r.residue_id = lc.residue_id
                        JOIN pdbchem.chem_comp_fragments cf ON r.res_name = cf.het_id
                        JOIN pdbchem.chem_comp_fragment_atoms cfa ON cfa.chem_comp_fragment_id = cf.chem_comp_fragment_id
@@ -26,8 +29,8 @@ DO $$
                  ),
                  ligand_fragment_atoms AS
                  (
-                     INSERT INTO credo.ligand_fragment_atoms(ligand_fragment_id, atom_id)
-                     SELECT DISTINCT lf.ligand_fragment_id, a.atom_id
+                     INSERT INTO credo.ligand_fragment_atoms(ligand_id, ligand_fragment_id, atom_id)
+                     SELECT DISTINCT lf.ligand_id, lf.ligand_fragment_id, a.atom_id
                        FROM ligand_fragments lf
                             -- get the ligand component atoms
                        JOIN credo.ligand_components lc ON lc.ligand_component_id = lf.ligand_component_id
@@ -50,29 +53,49 @@ DO $$
         END LOOP;
 END$$;
 
-CREATE  INDEX idx_ligand_fragments_biomolecule_id
-        ON credo.ligand_fragments
-        USING btree (biomolecule_id) WITH(FILLFACTOR=100);
 
-CREATE  INDEX idx_ligand_fragments_ligand_id
-        ON credo.ligand_fragments
-        USING btree (ligand_id) WITH(FILLFACTOR=100);
+--CREATE INDEX idx_ligand_fragments_biomolecule_id
+--  ON credo.ligand_fragments
+--  USING btree
+--  (biomolecule_id)
+--  WITH (FILLFACTOR=100);
 
-CREATE  INDEX idx_ligand_fragments_ligand_component_id
-        ON credo.ligand_fragments
-        USING btree (ligand_component_id) WITH(FILLFACTOR=100);
+--CREATE INDEX idx_ligand_fragments_fragment_id
+--  ON credo.ligand_fragments
+--  USING btree
+--  (fragment_id, hit)
+--  WITH (FILLFACTOR=100);
 
-CREATE  INDEX idx_ligand_fragments_fragment_id
-        ON credo.ligand_fragments
-        USING btree (fragment_id) WITH(FILLFACTOR=100);
+--CREATE INDEX idx_ligand_fragments_ligand_component_id
+--  ON credo.ligand_fragments
+--  USING btree
+--  (ligand_component_id)
+--  WITH (FILLFACTOR=100);
 
-CREATE  UNIQUE INDEX idx_ligand_fragment_atoms_ligand_fragment_id
-        ON credo.ligand_fragment_atoms
-        USING btree (ligand_fragment_id, atom_id) WITH(FILLFACTOR=100);
+--CREATE INDEX idx_ligand_fragments_ligand_id
+--  ON credo.ligand_fragments
+--  USING btree
+--  (ligand_id)
+--  WITH (FILLFACTOR=100);
 
-CREATE  INDEX idx_ligand_fragment_atoms_atom_id
-        ON credo.ligand_fragment_atoms
-        USING btree (atom_id) WITH(FILLFACTOR=100);
+--CREATE INDEX idx_ligand_fragment_atoms_atom_id
+--  ON credo.ligand_fragment_atoms
+--  USING btree
+--  (atom_id)
+--  WITH (FILLFACTOR=100);
+
+--CREATE UNIQUE INDEX idx_ligand_fragment_atoms_ligand_fragment_id
+--  ON credo.ligand_fragment_atoms
+--  USING btree
+--  (ligand_fragment_id, atom_id)
+--  WITH (FILLFACTOR=100);
+--
+
+--CREATE INDEX idx_ligand_fragment_atoms_ligand_id
+--  ON credo.ligand_fragment_atoms
+--  USING btree
+--  (ligand_id)
+--  WITH (FILLFACTOR=100);
 
 
 -- SET A FLAG OF ROOT LIGAND FRAGMENTS
@@ -187,3 +210,139 @@ UPDATE credo.ligand_fragments u
           JOIN pdbchem.fragments f ON f.fragment_id = lf.fragment_id
        ) sq
  WHERE u.ligand_fragment_id = sq.ligand_fragment_id;
+
+DO $$
+    DECLARE
+        lig_id INTEGER;
+        biomol_id INTEGER;
+    BEGIN
+        FOR lig_id, biomol_id IN   SELECT DISTINCT ligand_id, biomolecule_id
+                                     FROM credo.ligand_fragments
+                                 ORDER BY 1
+        LOOP
+            EXECUTE
+            '
+            UPDATE credo.ligand_fragments lf
+               SET npr1 = (sq.nprs).npr1, npr2 = (sq.nprs).npr2
+              FROM (
+                      WITH sq AS
+                           (
+                               SELECT lfa.ligand_fragment_id,
+                                      array_cat(a.coords) AS coords,
+                                      array_agg(a.element) AS elements,
+                                      count(a.atom_id) AS num_atoms
+                                 FROM credo.ligand_fragment_atoms lfa
+                                 JOIN credo.atoms a ON a.atom_id = lfa.atom_id
+                                WHERE ligand_id = $1 AND a.biomolecule_id = $2
+                             GROUP BY lfa.ligand_fragment_id
+                           )
+                    SELECT ligand_fragment_id, openeye.nprs(sq.coords, sq.elements) as nprs
+                      FROM sq
+                     WHERE sq.num_atoms >= 5
+                   ) sq
+             WHERE lf.ligand_fragment_id = sq.ligand_fragment_id;
+            ' USING lig_id, biomol_id;
+            RAISE NOTICE 'updated normalized ratios of PMI for ligand %', lig_id;
+        END LOOP;
+END$$;
+
+DO $$
+    DECLARE
+        lig_id INTEGER;
+        biomol_id INTEGER;
+    BEGIN
+        FOR lig_id, biomol_id IN   SELECT DISTINCT ligand_id, biomolecule_id
+                                     FROM credo.ligand_fragments
+                                 ORDER BY 1
+        LOOP
+            EXECUTE
+            '
+                 WITH atoms AS
+                      (
+                       SELECT ligand_fragment_id, atom_id,
+                              asa_apo, asa_bound, asa_delta,
+                              CASE WHEN a.element = ''N''
+                                        OR a.element = ''O''
+                                        OR a.element = ''P''
+                                        OR a.element = ''S''
+                                   THEN true ELSE false
+                              END AS is_polar
+                         FROM credo.binding_site_atom_surface_areas bsa
+                         JOIN credo.ligand_fragment_atoms lfa USING(ligand_id, atom_id)
+                         JOIN credo.atoms a USING(atom_id)
+                        WHERE ligand_id = $1 AND a.biomolecule_id = $2
+                      ),
+                      asa AS
+                      (
+                         SELECT ligand_fragment_id,
+                                sum(asa_apo) as asa_apo,
+                                sum(asa_bound) as asa_bound,
+                                sum(asa_delta) as asa_delta,
+                                -- catch division by zero error if all fragment
+                                -- atoms are already buried
+                                CASE WHEN sum(asa_apo) > 0
+                                     THEN sum(asa_delta) / sum(asa_apo)
+                                     ELSE NULL
+                                END AS asa_buriedness
+                           FROM atoms
+                       GROUP BY ligand_fragment_id
+                      ),
+                      aasa AS
+                      (
+                         SELECT ligand_fragment_id,
+                                sum(asa_apo) as aasa_apo,
+                                sum(asa_bound) as aasa_bound,
+                                sum(asa_delta) as aasa_delta,
+                                CASE WHEN sum(asa_apo) > 0
+                                     THEN sum(asa_delta) / sum(asa_apo)
+                                     ELSE NULL
+                                END AS aasa_buriedness
+                           FROM atoms
+                          WHERE is_polar = false
+                       GROUP BY ligand_fragment_id
+                      ),
+                      pasa AS
+                      (
+                         SELECT ligand_fragment_id,
+                                sum(asa_apo) as pasa_apo,
+                                sum(asa_bound) as pasa_bound,
+                                sum(asa_delta) as pasa_delta,
+                                CASE WHEN sum(asa_apo) > 0
+                                     THEN sum(asa_delta) / sum(asa_apo)
+                                     ELSE NULL
+                                END AS pasa_buriedness
+                           FROM atoms
+                          WHERE is_polar = true
+                       GROUP BY ligand_fragment_id
+                      )
+               UPDATE credo.ligand_fragments lf
+                  SET asa_buriedness = sq.asa_buriedness,
+                      aasa_buriedness = sq.aasa_buriedness,
+                      pasa_buriedness = sq.pasa_buriedness
+                 FROM (
+                          SELECT asa.ligand_fragment_id,
+                                 asa_buriedness, aasa_buriedness, pasa_buriedness
+                            FROM asa
+                       LEFT JOIN aasa ON asa.ligand_fragment_id = aasa.ligand_fragment_id
+                       LEFT JOIN pasa ON asa.ligand_fragment_id = pasa.ligand_fragment_id
+                      ) sq
+                WHERE lf.ligand_fragment_id = sq.ligand_fragment_id
+            ' USING lig_id, biomol_id;
+            RAISE NOTICE 'Updated surface buriedness for all fragments of ligand %', lig_id;
+        END LOOP;
+END$$;
+
+UPDATE credo.ligand_fragments lf
+   SET rel_asa_buriedness = sq.rel_asa_buriedness
+  FROM (
+          with roots AS
+               (
+                SELECT ligand_id, asa_buriedness
+                  FROM credo.ligand_fragments lf
+                 WHERE is_root = true AND asa_buriedness > 0
+               )
+        SELECT ligand_fragment_id, lf.asa_buriedness / r.asa_buriedness as rel_asa_buriedness
+          FROM credo.ligand_fragments lf
+          JOIN roots r ON r.ligand_id = lf.ligand_id
+       ) sq
+ WHERE lf.ligand_fragment_id = sq.ligand_fragment_id;

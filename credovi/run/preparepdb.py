@@ -212,17 +212,16 @@ def do(controller):
 
             biomolecules = []
 
-            # check whether assemblies can be generated or if the asu has to split into monomers
-            num_assembly_sets = db.get_pisa_num_assembly_sets(pdb)
+            # get the biomolecule transformations (REMARK 350)
+            biomt, is_monomeric = db.get_biomt(pdb)
 
-            # no prediction in PISA - keep structure as it is
-            if num_assembly_sets == -1:
+            # no BIOMT information - keep structure as it is
+            if not biomt:
                 app.log.debug('no stable PISA prediction found.')
                 biomolecules.append(structure)
 
-            # structure is predicted to be monomeric
-            elif num_assembly_sets == 0:
-                app.log.debug('PISA predicts Monomer.')
+            # structure is monomeric
+            elif is_monomeric:
 
                 # check if structure has to be split into monomers, i.e. if it
                 # has more than one chain
@@ -254,17 +253,14 @@ def do(controller):
 
                         biomolecules.append(biomolecule)
 
-                # STRUCTURE ONLY HAS A SINGLE CHAIN / NO SPLIT NECESSARY
+                # structure only has a single chain / no split necessary
                 else: biomolecules.append(structure)
 
-            # PISA contains predicted assemblies
+            # BIOMT contains assemblies
             else:
 
-                # get PISA data for quaternary assembly
-                pisa = db.get_pisa_data(pdb)
-
-                # generate quaternary assemblies using the PISA prediction
-                biomolecules = biomol.generate_biomolecule(structure, pisa)
+                # generate quaternary assemblies using the BIOMT data
+                biomolecules = biomol.generate_biomolecule(structure, biomt)
 
             # iterate through biomolecules and save structural data to disk
             for biomolecule in biomolecules:
@@ -272,9 +268,10 @@ def do(controller):
                 # get the assembly number - important later on for the credo schema
                 assembly_serial = biomolecule.GetIntData('assembly_serial')
 
-                # bad PISA prediction
+                # bad assembly
                 if not biomolecule.NumAtoms():
-                    app.log.warn("assembly {0} does not have any atoms!".format(assembly_serial))
+                    app.log.warn("assembly {0} does not have any atoms!"
+                                 .format(assembly_serial))
                     continue
 
                 # probably ligand-only structure (e.g. vancomycin)

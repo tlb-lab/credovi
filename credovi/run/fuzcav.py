@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import numpy as np
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, Table
 from progressbar import ProgressBar, Percentage, Bar, SimpleProgress
 
 import fuzcav
@@ -31,7 +31,8 @@ def do(controller):
     tracker = fuzcav.tracker()
 
     # get the fuzcav side chain representative table from the credoscript metadata
-    fuzcav_rep_sc_atoms = metadata.tables['credo.fuzcav_rep_sc_atoms']
+    metadata.reflect(schema='bio', only=('fuzcav_rep_sc_atoms',))
+    fuzcav_rep_sc_atoms = Table('bio.fuzcav_rep_sc_atoms', metadata, autoload=True)
 
     timer.start()
 
@@ -56,13 +57,14 @@ def do(controller):
                   .format(timer.elapsed()))
 
     #
-    query = BindingSiteResidue.query
-    query = query.join(Peptide, Peptide.residue_id==BindingSiteResidue.residue_id)
-    query = query.join(Atom, Atom.residue_id==Peptide.residue_id)
+    query = BindingSiteResidue.query.join('Peptide', 'Atoms')
+    #query = query.join(Peptide, Peptide.residue_id==BindingSiteResidue.residue_id)
+    #query = query.join(Atom, Atom.residue_id==Peptide.residue_id)
     query = query.outerjoin(fuzcav_rep_sc_atoms, and_(fuzcav_rep_sc_atoms.c.res_name==Peptide.res_name,
                                                       fuzcav_rep_sc_atoms.c.atom_name==Atom.atom_name))
     query = query.filter(and_(Peptide.is_non_std==False,
-                              or_(Atom.atom_name=='CA', fuzcav_rep_sc_atoms.c.atom_name!=None)))
+                              or_(Atom.atom_name=='CA',
+                                  fuzcav_rep_sc_atoms.c.atom_name!=None)))
     query = query.with_entities(Peptide.res_name, Atom)
 
     if args.progressbar:

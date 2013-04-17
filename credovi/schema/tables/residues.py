@@ -5,7 +5,7 @@ the residues table.
 """
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, DDL, DefaultClause, Index,
-                        Integer, String, Table, UniqueConstraint)
+                        Integer, String, Table, Text, UniqueConstraint)
 from sqlalchemy.event import listen
 from sqlalchemy.schema import PrimaryKeyConstraint
 
@@ -69,8 +69,6 @@ peptides = Table('peptides', metadata,
                  Column('res_map_id', Integer),
                  Column('one_letter_code', String(1)),
                  Column('sstruct', String(1), DefaultClause('L'), nullable=False), # "'L'","'H'","'B'","'E'","'G'","'I'","'T'","'S'"
-                 Column('cath', String(7)),
-                 Column('px', Integer),
                  Column('is_non_std', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                  Column('is_modified', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                  Column('is_mutated', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -81,8 +79,6 @@ PrimaryKeyConstraint(peptides.c.residue_id, deferrable=True, initially='deferred
 Index('idx_peptides_biomolecule_id', peptides.c.biomolecule_id)
 Index('idx_peptides_chain_id', peptides.c.chain_id, peptides.c.res_num, peptides.c.ins_code)
 Index('idx_peptides_res_map_id', peptides.c.res_map_id) # CANNOT BE UNIQUE!
-Index('idx_peptides_cath', peptides.c.cath)
-Index('idx_peptides_px', peptides.c.px)
 Index('idx_peptides_path', peptides.c.path, postgresql_using='gist')
 
 # neccessary to drop tables with sqlalchemy
@@ -123,8 +119,6 @@ peptide_comments = {
         "res_map_id": "Primary key of this peptide in the SIFTS residue mapping.",
         "one_letter_code": "One-letter code of the amino acid. X is used in case of non-standard amino acids.",
         "sstruct": "Secondary structure DSSP code.",
-        "cath": "CATH domain identifier.",
-        "px": "SCOP px identifier.",
         "is_non_std": "True if the residue is not one of the 20 standard amino acids.",
         "is_modified": "True if this peptide is modified according to the SIFTS residue mapping.",
         "is_mutated": "True if this peptide is one of the 20 standard amino acids and the but differs from the canonical UniProt amino acid for this position."
@@ -258,12 +252,12 @@ residue_interaction_pairs = Table('residue_interaction_pairs', metadata,
                                   Column('residue_bgn_id', Integer, nullable=False),
                                   Column('residue_end_id', Integer, nullable=False),
                                   Column('structural_interaction_type_bm', Integer, DefaultClause('0'), nullable=False),
-                                  UniqueConstraint('residue_bgn_id', 'residue_end_id', name='residue_interaction_pairs_unique_interaction'),
                                   schema=schema)
 
+
 Index('idx_residue_interaction_pairs_biomolecule_id', residue_interaction_pairs.c.biomolecule_id)
-Index('idx_residue_interaction_pairs_residue_bgn_id', residue_interaction_pairs.c.residue_bgn_id)
-Index('idx_residue_interaction_pairs_residue_end_id', residue_interaction_pairs.c.residue_end_id)
+Index('idx_residue_interaction_pairs_residue_bgn_id', residue_interaction_pairs.c.residue_bgn_id, residue_interaction_pairs.c.residue_end_id, unique=True)
+Index('idx_residue_interaction_pairs_residue_end_id', residue_interaction_pairs.c.residue_end_id, residue_interaction_pairs.c.residue_bgn_id, unique=True)
 
 residue_interaction_pair_comments = {
     "table": "Contains all the residue pairs that are interacting with each other. This table is used as a shortcut to update interface/groove residues in particular.",
@@ -277,3 +271,16 @@ residue_interaction_pair_comments = {
 }
 
 comment_on_table_elements(residue_interaction_pairs, residue_interaction_pair_comments)
+
+
+peptide_features = Table('peptide_features', metadata,
+                         Column('peptide_feature_id', Integer, nullable=False),
+                         Column('res_map_id', Integer, nullable=False),
+                         Column('feature_type', String(64), nullable=False),
+                         Column('description', Text),
+                         Column('external_id', String(64)),
+                         schema=schema)
+
+PrimaryKeyConstraint(peptide_features.c.peptide_feature_id, deferrable=True, initially='deferred')
+Index('idx_peptide_features_res_map_id', peptide_features.c.res_map_id)
+Index('idx_peptide_features_feature_type', peptide_features.c.feature_type)

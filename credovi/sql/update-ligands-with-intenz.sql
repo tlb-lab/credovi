@@ -16,7 +16,7 @@ CREATE INDEX idx_chain_id_to_ec_chain_id
 -- create temporary tables to speed up the update
 CREATE TEMP TABLE ligand_to_chebi_id AS
 SELECT DISTINCT ligand_id, chebi_id
-  FROM credo.unichem_pdb_to_chebi u
+  FROM scifdw.unichem_pdb_to_chebi u
   JOIN credo.ligands l ON l.ligand_name = u.het_id;
 
 CREATE INDEX idx_ligand_to_chebi_id_chebi_id
@@ -62,3 +62,15 @@ UPDATE credo.ligands l
                AND lc.chebi_id = ANY(r.products)
        ) sq
  WHERE is_product = false AND sq.ligand_id = l.ligand_id;
+
+ UPDATE credo.ligands l
+   SET is_cofactor = true
+  FROM (
+         SELECT DISTINCT lc.ligand_id
+           FROM intenz.enzymes r, ligand_to_chebi_id lc, chain_id_to_ec ce,
+                ligand_to_prox_chain_id lpc
+          WHERE r.ec = ce.ec
+                AND lpc.ligand_id = lc.ligand_id AND lpc.chain_id = ce.chain_id
+                AND lc.chebi_id = ANY(r.cofactors)
+       ) sq
+ WHERE sq.ligand_id = l.ligand_id;

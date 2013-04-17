@@ -4,6 +4,7 @@ for each PDB file.
 """
 
 from sqlalchemy import Boolean, Column, DefaultClause, Float, Index, Integer, String, Table, Text
+from sqlalchemy.schema import PrimaryKeyConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, DOUBLE_PRECISION
 
 from credovi.schema import metadata, schema
@@ -11,9 +12,9 @@ from credovi.util.sqlalchemy import Vector3D
 
 # RAW CHAINS
 raw_chains = Table('raw_chains', metadata,
-                   Column('pdb', String(4), nullable=False, primary_key=True),
-                   Column('assembly_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
-                   Column('entity_serial', Integer, nullable=False, autoincrement=False, primary_key=True),
+                   Column('pdb', String(4), nullable=False),
+                   Column('assembly_serial', Integer, nullable=False, autoincrement=False),
+                   Column('entity_serial', Integer, nullable=False, autoincrement=False),
                    Column('pdb_chain_id', String(1), nullable=False),
                    Column('pdb_chain_asu_id', String(1), nullable=False),
                    Column('chain_type', String(50)),
@@ -21,6 +22,9 @@ raw_chains = Table('raw_chains', metadata,
                    Column('translation', ARRAY(DOUBLE_PRECISION)),
                    Column('is_at_identity', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                    schema=schema, prefixes=['unlogged'])
+
+PrimaryKeyConstraint(raw_chains.c.pdb, raw_chains.c.assembly_serial,
+                     raw_chains.c.entity_serial, deferrable=True, initially='deferred')
 
 # RAW LIGANDS
 raw_ligands = Table('raw_ligands', metadata,
@@ -31,14 +35,17 @@ raw_ligands = Table('raw_ligands', metadata,
                     Column('res_num', Integer),
                     Column('ligand_name', String(64), nullable=False),
                     Column('num_hvy_atoms', Integer),
-                    #Column('ism', Text),
+                    Column('ism', Text),
                     schema=schema, prefixes=['unlogged'])
+
+PrimaryKeyConstraint(raw_ligands.c.pdb, raw_ligands.c.assembly_serial,
+                     raw_ligands.c.entity_serial, deferrable=True, initially='deferred')
 
 # RAW ATOM TABLE
 raw_atoms = Table('raw_atoms', metadata,
-                  Column('pdb', String(4), nullable=False, primary_key=True),
-                  Column('assembly_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
-                  Column('atom_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
+                  Column('pdb', String(4), nullable=False),
+                  Column('assembly_serial', Integer, nullable=False, autoincrement=False),
+                  Column('atom_serial', Integer, nullable=False, autoincrement=False),
                   Column('group_pdb', String(7), nullable=False),
                   Column('atom_name', String(4), nullable=False),
                   Column('alt_loc', String(1), nullable=False),
@@ -70,15 +77,18 @@ raw_atoms = Table('raw_atoms', metadata,
                   Column('is_carbonyl_carbon', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                   schema=schema, prefixes=['unlogged'])
 
+PrimaryKeyConstraint(raw_atoms.c.pdb, raw_atoms.c.assembly_serial,
+                     raw_atoms.c.atom_serial, deferrable=True, initially='deferred')
+
 Index('idx_raw_atoms', raw_atoms.c.pdb, raw_atoms.c.assembly_serial,
       raw_atoms.c.pdb_chain_id, raw_atoms.c.res_num, raw_atoms.c.ins_code,
       raw_atoms.c.atom_name)
 
 raw_contacts = Table('raw_contacts', metadata,
-                     Column('pdb', String(4), primary_key=True),
-                     Column('assembly_serial', Integer, primary_key=True, autoincrement=False),
-                     Column('atom_bgn_serial', Integer, primary_key=True, autoincrement=False),
-                     Column('atom_end_serial', Integer, primary_key=True, autoincrement=False),
+                     Column('pdb', String(4), nullable=False),
+                     Column('assembly_serial', Integer, autoincrement=False),
+                     Column('atom_bgn_serial', Integer, autoincrement=False),
+                     Column('atom_end_serial', Integer, autoincrement=False),
                      Column('distance', Float(3,2), nullable=False),
                      Column('structural_interaction_type_bm', Integer, DefaultClause('0'), nullable=False),
                      Column('is_same_entity', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -97,12 +107,20 @@ raw_contacts = Table('raw_contacts', metadata,
                      Column('is_carbonyl', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      schema=schema, prefixes=['unlogged'])
 
+PrimaryKeyConstraint(raw_contacts.c.pdb, raw_contacts.c.assembly_serial,
+                     raw_contacts.c.atom_bgn_serial, raw_contacts.c.atom_end_serial,
+                     deferrable=True, initially='deferred')
+
 raw_rings = Table('raw_aromatic_rings', metadata,
-                  Column('pdb', String(4), nullable=False, primary_key=True),
-                  Column('assembly_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
-                  Column('ring_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
-                  Column('atom_serial', Integer, nullable=False, primary_key=True, autoincrement=False),
+                  Column('pdb', String(4), nullable=False,),
+                  Column('assembly_serial', Integer, nullable=False, autoincrement=False),
+                  Column('ring_serial', Integer, nullable=False, autoincrement=False),
+                  Column('atom_serial', Integer, nullable=False, autoincrement=False),
                   schema=schema, prefixes=['unlogged'])
+
+PrimaryKeyConstraint(raw_rings.c.pdb, raw_rings.c.assembly_serial,
+                     raw_rings.c.ring_serial, raw_rings.c.atom_serial,
+                     deferrable=True, initially='deferred')
 
 raw_binding_site_atom_surface_areas = Table('raw_binding_site_atom_surface_areas', metadata,
                  Column('pdb', String(4), nullable=False, primary_key=True),
@@ -124,26 +142,26 @@ Index('idx_raw_binding_site_atom_surface_areas_atom_serial',
       raw_binding_site_atom_surface_areas.c.assembly_serial,
       raw_binding_site_atom_surface_areas.c.atom_serial)
 
-raw_interface_atom_surface_areas = Table('raw_interface_atom_surface_areas', metadata,
-             Column('pdb', String(4), nullable=False),
-             Column('assembly_serial', Integer, nullable=False, autoincrement=False),
-             Column('pdb_chain_bgn_id', String(1), nullable=False),
-             Column('pdb_chain_end_id', String(1), nullable=False),
-             Column('pdb_chain_id', String(1), nullable=False),
-             Column('atom_serial', Integer, nullable=False, autoincrement=False),
-             Column('asa_apo', Float(5,2)),
-             Column('asa_bound', Float(5,2)),
-             Column('asa_delta', Float(5,2)),
-             schema=schema)
-
-Index('idx_raw_interface_atom_surface_areas_interface',
-      raw_interface_atom_surface_areas.c.pdb,
-      raw_interface_atom_surface_areas.c.assembly_serial,
-      raw_interface_atom_surface_areas.c.pdb_chain_bgn_id,
-      raw_interface_atom_surface_areas.c.pdb_chain_end_id)
-
-Index('idx_raw_interface_atom_surface_areas_pdb_chain_id',
-      raw_interface_atom_surface_areas.c.pdb,
-      raw_interface_atom_surface_areas.c.assembly_serial,
-      raw_interface_atom_surface_areas.c.pdb_chain_id,
-      raw_interface_atom_surface_areas.c.atom_serial)
+#raw_interface_atom_surface_areas = Table('raw_interface_atom_surface_areas', metadata,
+#             Column('pdb', String(4), nullable=False),
+#             Column('assembly_serial', Integer, nullable=False, autoincrement=False),
+#             Column('pdb_chain_bgn_id', String(1), nullable=False),
+#             Column('pdb_chain_end_id', String(1), nullable=False),
+#             Column('pdb_chain_id', String(1), nullable=False),
+#             Column('atom_serial', Integer, nullable=False, autoincrement=False),
+#             Column('asa_apo', Float(5,2)),
+#             Column('asa_bound', Float(5,2)),
+#             Column('asa_delta', Float(5,2)),
+#             schema=schema)
+#
+#Index('idx_raw_interface_atom_surface_areas_interface',
+#      raw_interface_atom_surface_areas.c.pdb,
+#      raw_interface_atom_surface_areas.c.assembly_serial,
+#      raw_interface_atom_surface_areas.c.pdb_chain_bgn_id,
+#      raw_interface_atom_surface_areas.c.pdb_chain_end_id)
+#
+#Index('idx_raw_interface_atom_surface_areas_pdb_chain_id',
+#      raw_interface_atom_surface_areas.c.pdb,
+#      raw_interface_atom_surface_areas.c.assembly_serial,
+#      raw_interface_atom_surface_areas.c.pdb_chain_id,
+#      raw_interface_atom_surface_areas.c.atom_serial)

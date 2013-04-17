@@ -85,11 +85,12 @@ def write_ligands(ligands, pdb, biomolecule, writer):
     """
     for ligand in ligands:
         res_num = ligand.GetIntData('res_num') if ligand.HasData('res_num') else '\N'
+        ism = mol_to_smiles(ligand, from3d=True, isomeric=True, reset_charges=True)
 
         row = [pdb, biomolecule, ligand.GetIntData('entity_serial'),
                ligand.GetStringData('pdb_chain_id'), res_num,
                ligand.GetStringData('name'), OECount(ligand, OEIsHeavy()),
-               mol_to_smiles(ligand, from3d=True, isomeric=True, reset_charges=True)]
+               ism.replace('\\','\\\\')] # backslash plaque!
 
         writer.writerow(row)
 

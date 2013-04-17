@@ -20,10 +20,12 @@ structures = Table('structures', metadata,
                     Column('dpi_theoretical_min', Float(3,2)),
                     Column('dpi', Float(3,2)),
                     Column('num_biomolecules', Integer),
+                    Column('related_by_pubmed_id', ARRAY(String(4))),
                     schema=schema)
 
 PrimaryKeyConstraint(structures.c.structure_id, deferrable=True, initially='deferred')
 Index('idx_structures_pdb', structures.c.pdb, unique=True)
+Index('idx_structures_related_by_pubmed_id', structures.c.related_by_pubmed_id, postgresql_using="gin", postgresql_where=structures.c.related_by_pubmed_id != None)
 
 comments = {
     "table": "Represents a structure from a PDB entry.",

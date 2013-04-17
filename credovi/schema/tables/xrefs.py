@@ -1,13 +1,13 @@
 """
 """
-
-from sqlalchemy import Column, Index, Integer, String, Table
+from sqlalchemy import Column, Index, Integer, String, Table, Text
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import comment_on_table_elements
 
 xrefs = Table('xrefs', metadata,
-              Column('xref_id', Integer, primary_key=True),
+              Column('xref_id', Integer, nullable=False),
               Column('entity_type', String(12), nullable=False),
               Column('entity_id', Integer, nullable=False),
               Column('source', String(32), nullable=False),
@@ -15,6 +15,7 @@ xrefs = Table('xrefs', metadata,
               Column('description', Text),
               schema=schema)
 
+PrimaryKeyConstraint(xrefs.c.xref_id, deferrable=True, initially='deferred')
 Index('idx_xrefs_entity_type', xrefs.c.entity_type, xrefs.c.entity_id)
 Index('idx_xrefs_xref', xrefs.c.source, xrefs.c.xref)
 

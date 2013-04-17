@@ -375,20 +375,6 @@ ORDER BY aromatic_ring_id, atom_id;
      JOIN credo.ligand_components lc ON lc.residue_id = r.residue_id
     WHERE lc.ligand_id > (SELECT COALESCE(MAX(ligand_id),0) FROM credo.hetatms);
 
--- BINDING SITE RESIDUES
-  INSERT INTO credo.binding_site_residues
-  SELECT DISTINCT lc.ligand_id, rp.residue_end_id, entity_type_bm
-    FROM credo.residue_interaction_pairs rp
-    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_bgn_id
-    JOIN credo.residues r ON r.residue_id = rp.residue_end_id
-   UNION
-  SELECT DISTINCT lc.ligand_id, rp.residue_bgn_id, entity_type_bm
-    FROM credo.residue_interaction_pairs rp
-    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_end_id
-    JOIN credo.residues r ON r.residue_id = rp.residue_bgn_id
-ORDER BY 1,2,3;
-
-
 -- CALCULATE RING INTERACTIONS
   INSERT INTO credo.ring_interactions(biomolecule_id,
                                       aromatic_ring_bgn_id, aromatic_ring_end_id,
@@ -472,7 +458,7 @@ DO $$
                                                      fragment_size, fragment_seq)
                     SELECT DISTINCT
                            b.biomolecule_id, c.chain_id,
-                           c.path || (''PF:'' ||  f.sstruct_serial)::ptree,
+                           c.path || (f.sstruct || '':'' ||  f.sstruct_serial)::ptree,
                            f.sstruct_serial, f.sstruct, f.fragment_size, f.fragment_seq
                      FROM credo.structures s
                      JOIN credo.biomolecules b ON b.structure_id = s.structure_id
@@ -552,6 +538,19 @@ DO $$
             RAISE NOTICE 'inserted residue interaction pairs for biomolecule %', biomol_id;
         END LOOP;
 END$$;
+
+-- BINDING SITE RESIDUES
+  INSERT INTO credo.binding_site_residues
+  SELECT DISTINCT lc.ligand_id, rp.residue_end_id, entity_type_bm
+    FROM credo.residue_interaction_pairs rp
+    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_bgn_id
+    JOIN credo.residues r ON r.residue_id = rp.residue_end_id
+   UNION
+  SELECT DISTINCT lc.ligand_id, rp.residue_bgn_id, entity_type_bm
+    FROM credo.residue_interaction_pairs rp
+    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_end_id
+    JOIN credo.residues r ON r.residue_id = rp.residue_bgn_id
+ORDER BY 1,2,3;
 
 
 
@@ -963,40 +962,53 @@ for each ligand with at least 5 heavy atoms.
 */
 DO $$
     # GET ALL LIGAND IDS
-    result = plpy.execute("SELECT biomolecule_id, ligand_id FROM credo.ligands WHERE num_hvy_atoms >= 7 AND gini_index_contacts IS NULL ORDER BY 1")
+    result = plpy.execute("SELECT biomolecule_id, ligand_id FROM credo.ligands WHERE num_hvy_atoms >= 5 ORDER BY 1")
 
     for biomolecule_id, ligand_id in [(row['biomolecule_id'], row['ligand_id']) for row in result]:
 
         # GET ALL THE PRIMARY CONTACTS FOR EACH LIGAND
         statement = '''
-                    SELECT  array_length(array_agg(sq.atoms),1) as num_atoms
-                    FROM    (
-                            SELECT  h.ligand_id, h.hetatm_id, cs.atom_end_id as atoms
-                            FROM    credo.contacts cs
-                            JOIN    credo.hetatms h ON cs.atom_bgn_id = h.atom_id
-                            JOIN    credo.ligands l ON l.ligand_id = h.ligand_id
-                            WHERE   h.ligand_id = $1
-                                    AND cs.biomolecule_id = $2
-                                    AND l.biomolecule_id = cs.biomolecule_id
-                                    AND cs.is_same_entity = false
-                                    AND cs.distance <= 4.5
-                                    -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
-                                    AND cs.structural_interaction_type_bm & 56 > 0
-                            UNION
-                            SELECT  h.ligand_id, h.hetatm_id, cs.atom_bgn_id as atoms
-                            FROM    credo.contacts cs
-                            JOIN    credo.hetatms h ON cs.atom_end_id = h.atom_id
-                            JOIN    credo.ligands l ON l.ligand_id = h.ligand_id
-                            WHERE   h.ligand_id = $1
-                                    AND cs.biomolecule_id = $2
-                                    AND l.biomolecule_id = cs.biomolecule_id
-                                    AND cs.is_same_entity = false
-                                    AND cs.distance <= 4.5
-                                    -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
-                                    AND cs.structural_interaction_type_bm & 3584 > 0
-                            ) sq
-                    GROUP BY ligand_id, hetatm_id
-                    ORDER BY 1
+                         WITH hetatms AS
+                              (
+                               SELECT h.hetatm_id
+                                 FROM credo.hetatms h
+                                WHERE h.ligand_id = $1
+                              ),
+                              contacts AS
+                              (
+                                SELECT  ligand_id, hetatm_id, array_length(array_agg(sq.atoms),1) as num_atoms
+                                FROM    (
+                                        SELECT  h.ligand_id, h.hetatm_id, cs.atom_end_id as atoms
+                                        FROM    credo.contacts cs
+                                        JOIN    credo.hetatms h ON cs.atom_bgn_id = h.atom_id
+                                        JOIN    credo.ligands l ON l.ligand_id = h.ligand_id
+                                        WHERE   h.ligand_id = $1
+                                                AND cs.biomolecule_id = $2
+                                                AND l.biomolecule_id = cs.biomolecule_id
+                                                AND cs.is_same_entity = false
+                                                AND cs.distance <= 4.5
+                                                -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
+                                                AND cs.structural_interaction_type_bm & 56 > 0
+                                        UNION
+                                        SELECT  h.ligand_id, h.hetatm_id, cs.atom_bgn_id as atoms
+                                        FROM    credo.contacts cs
+                                        JOIN    credo.hetatms h ON cs.atom_end_id = h.atom_id
+                                        JOIN    credo.ligands l ON l.ligand_id = h.ligand_id
+                                        WHERE   h.ligand_id = $1
+                                                AND cs.biomolecule_id = $2
+                                                AND l.biomolecule_id = cs.biomolecule_id
+                                                AND cs.is_same_entity = false
+                                                AND cs.distance <= 4.5
+                                                -- INTERACTION MUST BE WITH POLYMER ATOM (PROT/DNA/RNA)
+                                                AND cs.structural_interaction_type_bm & 3584 > 0
+                                        ) sq
+                                GROUP BY ligand_id, hetatm_id
+                                ORDER BY 3
+                              )
+                       SELECT COALESCE(cs.num_atoms, 0) as num_atoms
+                         FROM hetatms h
+                    LEFT JOIN contacts cs ON cs.hetatm_id = h.hetatm_id
+                     ORDER BY 1
                     '''
 
         # PREPARE STATEMENT FOR EXECUTION
@@ -1012,7 +1024,7 @@ DO $$
         # TOTAL NUMBER OF CONTACTS
         N = len(contacts)
 
-        if not N:
+        if not N or not sum(contacts):
             plpy.warning("No primary contacts found for ligand %i"  % (ligand_id))
             continue
 

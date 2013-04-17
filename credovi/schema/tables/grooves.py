@@ -3,6 +3,7 @@ The grooves table holds protein-nucleic acid complexes.
 """
 
 from sqlalchemy import Column, Index, Integer, String, Table, Boolean, DefaultClause
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, comment_on_table_elements
@@ -42,14 +43,14 @@ groove_comments = {
 
 comment_on_table_elements(grooves, groove_comments)
 
-groove_residues = Table('groove_residues', metadata,
+groove_residue_pairs = Table('groove_residue_pairs', metadata,
                         Column('groove_id', Integer, autoincrement=False, primary_key=True),
                         Column('residue_prot_id', Integer, autoincrement=False, primary_key=True),
                         Column('residue_nuc_id', Integer, autoincrement=False, primary_key=True),
                         schema=schema)
 
-Index('idx_groove_residues_residue_bgn_id', groove_residues.c.residue_prot_id)
-Index('idx_groove_residues_residue_end_id', groove_residues.c.residue_nuc_id)
+Index('idx_groove_residue_pairs_residue_bgn_id', groove_residue_pairs.c.residue_prot_id)
+Index('idx_groove_residue_pairs_residue_end_id', groove_residue_pairs.c.residue_nuc_id)
 
 groove_residue_comments = {
     "table": "contains the combinations of all residues in an interface that are interacting.",
@@ -61,4 +62,4 @@ groove_residue_comments = {
     }
 }
 
-comment_on_table_elements(groove_residues, groove_residue_comments)
+comment_on_table_elements(groove_residue_pairs, groove_residue_comments)

@@ -46,19 +46,19 @@ interface_comments = {
 
 comment_on_table_elements(interfaces, interface_comments)
 
-interface_residues = Table('interface_residues', metadata,
+interface_peptide_pairs = Table('interface_peptide_pairs', metadata,
                            Column('interface_id', Integer, autoincrement=False),
                            Column('residue_bgn_id', Integer, autoincrement=False),
                            Column('residue_end_id', Integer, autoincrement=False),
                            schema=schema)
 
-PrimaryKeyConstraint(interface_residues.c.interface_id, interface_residues.c.residue_bgn_id,
-                     interface_residues.c.residue_end_id, deferrable=True, initially='deferred')
-Index('idx_interface_residues_residue_bgn_id', interface_residues.c.residue_bgn_id)
-Index('idx_interface_residues_residue_end_id', interface_residues.c.residue_end_id)
+PrimaryKeyConstraint(interface_peptide_pairs.c.interface_id, interface_peptide_pairs.c.residue_bgn_id,
+                     interface_peptide_pairs.c.residue_end_id, deferrable=True, initially='deferred')
+Index('idx_interface_peptide_pairs_residue_bgn_id', interface_peptide_pairs.c.residue_bgn_id)
+Index('idx_interface_peptide_pairs_residue_end_id', interface_peptide_pairs.c.residue_end_id)
 
 
-interface_residue_comments = {
+interface_peptide_pairs_comments = {
     "table": "Contains the combinations of all residues in an interface that are interacting.",
     "columns":
     {
@@ -68,7 +68,7 @@ interface_residue_comments = {
     }
 }
 
-comment_on_table_elements(interface_residues, interface_residue_comments)
+comment_on_table_elements(interface_peptide_pairs, interface_peptide_pairs_comments)
 
 #interface_atom_surface_areas = Table('interface_atom_surface_areas', metadata,
 #                                     Column('interface_id', Integer, primary_key=True),

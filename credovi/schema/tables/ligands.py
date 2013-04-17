@@ -94,22 +94,28 @@ ligand_fragments = Table('ligand_fragments', metadata,
                          Column('ligand_component_id', Integer, nullable=False),
                          Column('fragment_id', Integer, nullable=False),
                          Column('hit', Integer, nullable=False),
-                         Column('num_int_atoms', Integer),
-                         Column('num_contacts', Integer),
-                         Column('num_covalent', Integer),
-                         Column('num_vdw_clash', Integer),
-                         Column('num_vdw', Integer),
-                         Column('num_proximal', Integer),
-                         Column('num_hbond', Integer),
-                         Column('num_weak_hbond', Integer),
-                         Column('num_xbond', Integer),
-                         Column('num_ionic', Integer),
-                         Column('num_metal_complex', Integer),
-                         Column('num_aromatic', Integer),
-                         Column('num_hydrophobic', Integer),
-                         Column('num_carbonyl', Integer),
-                         Column('fcd', Float(5,3)),
-                         Column('fad', Float(5,3)),
+                         Column('num_int_atoms', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_contacts', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_covalent', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_vdw_clash', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_vdw', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_proximal', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_hbond', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_weak_hbond', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_xbond', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_ionic', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_metal_complex', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_aromatic', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_hydrophobic', Integer, DefaultClause('0'), nullable=False),
+                         Column('num_carbonyl', Integer, DefaultClause('0'), nullable=False),
+                         Column('fcd', Float(5,3), DefaultClause('0'), nullable=False),
+                         Column('fad', Float(5,3), DefaultClause('0'), nullable=False),
+                         Column('npr1', Float(4,3)),
+                         Column('npr2', Float(4,3)),
+                         Column('asa_buriedness', Float(4,3)),
+                         Column('rel_asa_buriedness', Float(4,3)),
+                         Column('aasa_buriedness', Float(4,3)),
+                         Column('pasa_buriedness', Float(4,3)),
                          Column('is_root', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                          Column('is_interacting', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                          schema=schema)
@@ -118,7 +124,7 @@ PrimaryKeyConstraint(ligand_fragments.c.ligand_fragment_id, deferrable=True, ini
 Index('idx_ligand_fragments_biomolecule_id', ligand_fragments.c.biomolecule_id)
 Index('idx_ligand_fragments_ligand_id', ligand_fragments.c.ligand_id)
 Index('idx_ligand_fragments_ligand_component_id', ligand_fragments.c.ligand_component_id)
-Index('idx_ligand_fragments_fragment_id', ligand_fragments.c.ligand_fragment_id, ligand_fragments.c.hit)
+Index('idx_ligand_fragments_fragment_id', ligand_fragments.c.fragment_id, ligand_fragments.c.hit)
 
 ligand_fragment_comments = {
     "table": "ligand fragments are the result of mapping the RECAP fragments of chemical components onto ligands and their atoms.",
@@ -127,9 +133,12 @@ ligand_fragment_comments = {
         "ligand_fragment_id": "Primary key of the ligand fragment.",
         "biomolecule_id": "Primary key of the parent biomolecule.",
         "ligand_id": "Primary key of the parent ligand.",
-        "residue_id": "Primary key of the parent ligand component.",
+        "ligand_component_id": "Primary key of the parent ligand component.",
         "fragment_id": "Primary key of the fragment that was mapped to create the ligand fragment.",
-        "hit": "Hit number of the fragment; sometimes a fragment can be found more than once in a ligand."
+        "hit": "Hit number of the fragment; sometimes a fragment can be found more than once in a ligand.",
+        "asa_buriedness":"Ratio of the accessible surface area of the fragment that is buried in the bound state.",
+        "aasa_buriedness":"Ratio of the apolar accessible surface area of the fragment that is buried in the bound state.",
+        "pasa_buriedness":"Ratio of the polar accessible surface area of the fragment that is buried in the bound state."
     }
 }
 
@@ -171,8 +180,11 @@ ligand_molstring_comments = {
 
 comment_on_table_elements(ligand_molstrings, ligand_molstring_comments)
 
+
 ligand_usr = Table('ligand_usr', metadata,
                    Column('ligand_id', Integer, nullable=False, autoincrement=False),
+                   Column('npr1', Float(4,3)),
+                   Column('npr2', Float(4,3)),
                    Column('usr_space', Cube, nullable=False),
                    Column('usr_moments', ARRAY(Float, dimensions=1), nullable=False),
                    schema=schema)
@@ -214,6 +226,9 @@ ligand_eff = Table('ligand_eff', metadata,
                    Column('activity_comment', Text),
                    schema=schema)
 
+PrimaryKeyConstraint(ligand_eff.c.ligand_id, ligand_eff.c.activity_id,
+                     deferrable=True, initially='deferred')
+
 ligand_eff_comments = {
     "table": "Contains ligand efficiency data from ChEMBL.",
     "columns":
@@ -226,12 +241,13 @@ comment_on_table_elements(ligand_eff, ligand_eff_comments)
 
 
 hetatms = Table('hetatms', metadata,
-                Column('hetatm_id', Integer, primary_key=True),
+                Column('hetatm_id', Integer, nullable=False),
                 Column('ligand_id', Integer, nullable=False),
                 Column('ligand_component_id', Integer, nullable=False),
                 Column('atom_id', Integer, nullable=False),
                 schema=schema)
 
+PrimaryKeyConstraint(hetatms.c.hetatm_id, deferrable=True, initially='deferred')
 Index('idx_hetatms_ligand_id', hetatms.c.ligand_id)
 Index('idx_hetatms_ligand_component_id', hetatms.c.ligand_component_id)
 Index('idx_hetatms_atom_id', hetatms.c.atom_id)
@@ -252,11 +268,7 @@ comment_on_table_elements(hetatms, hetatm_comments)
 
 #
 binding_sites = Table('binding_sites', metadata,
-                      Column('ligand_id', Integer, primary_key=True, autoincrement=False, nullable=False),
-                      Column('cath_dmns', ARRAY(String, dimensions=1)),
-                      Column('scop_pxs', ARRAY(String, dimensions=1)),
-                      Column('hom_superfam', Text),
-                      Column('hom_superfam_label', Text),
+                      Column('ligand_id', Integer, autoincrement=False, nullable=False),
                       Column('has_incomplete_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       Column('has_non_std_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       Column('has_mod_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -264,6 +276,9 @@ binding_sites = Table('binding_sites', metadata,
                       Column('has_mapped_var', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       Column('is_kinase', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       schema=schema)
+
+PrimaryKeyConstraint(binding_sites.c.ligand_id, deferrable=True,
+                     initially='deferred')
 
 binding_sites_comments = {
     "table": "Contains more info about the ligand binding sites (protein only!).",
@@ -281,11 +296,13 @@ binding_sites_comments = {
 
 # link between ligands and the residues they interact with
 binding_site_residues = Table('binding_site_residues', metadata,
-                              Column('ligand_id', Integer, primary_key=True, autoincrement=False, nullable=False),
-                              Column('residue_id', Integer, primary_key=True, autoincrement=False, nullable=False),
+                              Column('ligand_id', Integer, autoincrement=False, nullable=False),
+                              Column('residue_id', Integer,  autoincrement=False, nullable=False),
                               Column('entity_type_bm', Integer, nullable=False),
                               schema=schema)
 
+PrimaryKeyConstraint(binding_site_residues.c.ligand_id, binding_site_residues.c.residue_id,
+                     deferrable=True, initially='deferred')
 Index('idx_binding_site_residues_residue_id', binding_site_residues.c.residue_id)
 
 binding_site_residues_comments = {
@@ -300,22 +317,25 @@ binding_site_residues_comments = {
 comment_on_table_elements(binding_site_residues, binding_site_residues_comments)
 
 binding_site_domains = Table('binding_site_domains', metadata,
-                              Column('ligand_id', Integer, primary_key=True, autoincrement=False, nullable=False),
-                              Column('domain_id', Integer, primary_key=True, autoincrement=False, nullable=False),
+                              Column('ligand_id', Integer, autoincrement=False, nullable=False),
+                              Column('domain_id', Integer, autoincrement=False, nullable=False),
                               schema=schema)
 
-Index('idx_binding_site_domains_domain_id', binding_site_domains.c.domain_id, binding_site_domains.c.ligand_id, unique=True)
+PrimaryKeyConstraint(binding_site_domains.c.ligand_id, binding_site_domains.c.domain_id,
+                     deferrable=True, initially='deferred')
+Index('idx_binding_site_domains_domain_id', binding_site_domains.c.domain_id,
+      binding_site_domains.c.ligand_id, unique=True)
 
 # interactions between ligands
 lig_lig_ints = Table('lig_lig_interactions', metadata,
-                     Column('lig_lig_interaction_id', Integer, primary_key=True),
+                     Column('lig_lig_interaction_id', Integer, nullable=False, autoincrement=True),
                      Column('biomolecule_id', Integer, nullable=False),
                      Column('lig_bgn_id', Integer, nullable=False),
                      Column('lig_end_id', Integer, nullable=False),
                      Column('path', PTree),
                      Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('is_homo_dimer', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                     Column('has_missing_atoms', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                     Column('has_incomplete_res', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('has_clash', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('has_product', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      Column('has_substrate', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -323,6 +343,7 @@ lig_lig_ints = Table('lig_lig_interactions', metadata,
                      Column('has_drug_like_ligands', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      schema=schema)
 
+PrimaryKeyConstraint(lig_lig_ints.c.lig_lig_interaction_id, deferrable=True, initially='deferred')
 Index('idx_lig_lig_interactions_biomolecule_id', lig_lig_ints.c.biomolecule_id)
 Index('idx_lig_lig_interactions_path', lig_lig_ints.c.path, postgresql_using='gist')
 Index('idx_lig_lig_interactions_lig_bgn_id', lig_lig_ints.c.lig_bgn_id)
@@ -330,7 +351,7 @@ Index('idx_lig_lig_interactions_lig_end_id', lig_lig_ints.c.lig_end_id)
 
 # interactions between ligands and nucleic acids
 lig_nuc_ints = Table('lig_nuc_interactions', metadata,
-                     Column('lig_nuc_interaction_id', Integer, primary_key=True),
+                     Column('lig_nuc_interaction_id', Integer, nullable=False, autoincrement=True),
                      Column('biomolecule_id', Integer, nullable=False),
                      Column('ligand_id', Integer, nullable=False),
                      Column('chain_nuc_id', Integer, nullable=False),
@@ -338,38 +359,44 @@ lig_nuc_ints = Table('lig_nuc_interactions', metadata,
                      Column('is_quaternary', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                      schema=schema)
 
+PrimaryKeyConstraint(lig_nuc_ints.c.lig_nuc_interaction_id, deferrable=True, initially='deferred')
 Index('idx_lig_nuc_interactions_biomolecule_id', lig_nuc_ints.c.biomolecule_id)
 Index('idx_lig_nuc_interactions_path', lig_nuc_ints.c.path, postgresql_using='gist')
 Index('idx_lig_nuc_interactions_ligand_id', lig_nuc_ints.c.ligand_id)
 Index('idx_lig_nuc_interactions_chain_nuc_id', lig_nuc_ints.c.chain_nuc_id)
 
-#binding_site_atom_surface_areas = Table('binding_site_atom_surface_areas', metadata,
-#                                        Column('ligand_id', Integer, primary_key=True, autoincrement=False),
-#                                        Column('atom_id', Integer, primary_key=True, autoincrement=False),
-#                                        Column('asa_apo', Float(4,2)),
-#                                        Column('asa_bound', Float(4,2)),
-#                                        Column('asa_delta', Float(4,2)),
-#                                        schema=schema)
-#
-#Index('idx_binding_site_atom_surface_areas_atom_id', binding_site_atom_surface_areas.c.atom_id)
-#
-#binding_site_atom_surface_area_commnents = {
-#    "table": "Solvent-accessible surface area changes for each atom in a binding site defined by a ligand.",
-#    "columns":
-#    {
-#        "ligand_id": "Primary key of the ligand that defines this binding site.",
-#        "atom_id": "Primary key of the atom that has a different solvent-exposed surface upon binding - can be a ligand or polymer atom.",
-#        "asa_apo": "Solvent-accessible surface area of the atom in the apo state.",
-#        "asa_bound": "Solvent-accessible surface area of the atom in the bound state.",
-#        "asa_delta": "Change in solvent-accessible surface area between the apo and bound state."
-#    }
-#}
 
-#comment_on_table_elements(binding_site_atom_surface_areas, binding_site_atom_surface_area_commnents)
+binding_site_atom_surface_areas = Table('binding_site_atom_surface_areas', metadata,
+                                        Column('ligand_id', Integer, primary_key=True, autoincrement=False),
+                                        Column('atom_id', Integer, primary_key=True, autoincrement=False),
+                                        Column('asa_apo', Float(4,2)),
+                                        Column('asa_bound', Float(4,2)),
+                                        Column('asa_delta', Float(4,2)),
+                                        schema=schema)
+
+Index('idx_binding_site_atom_surface_areas_atom_id', binding_site_atom_surface_areas.c.atom_id)
+
+binding_site_atom_surface_area_commnents = {
+    "table": "Solvent-accessible surface area changes for each atom in a binding site defined by a ligand.",
+    "columns":
+    {
+        "ligand_id": "Primary key of the ligand that defines this binding site.",
+        "atom_id": "Primary key of the atom that has a different solvent-exposed surface upon binding - can be a ligand or polymer atom.",
+        "asa_apo": "Solvent-accessible surface area of the atom in the apo state.",
+        "asa_bound": "Solvent-accessible surface area of the atom in the bound state.",
+        "asa_delta": "Change in solvent-accessible surface area between the apo and bound state."
+    }
+}
+
+comment_on_table_elements(binding_site_atom_surface_areas, binding_site_atom_surface_area_commnents)
+
 
 # table containing the fuzcav fingerprint for all ligand-defined binding sites
 binding_site_fuzcav = Table('binding_site_fuzcav', metadata,
-                            Column('ligand_id', Integer, nullable=False, primary_key=True),
+                            Column('ligand_id', Integer, nullable=False, autoincrement=False),
                             Column('calphafp', ArrayXi, nullable=False),
                             Column('repfp', ArrayXi, nullable=False),
                             schema=schema)
+
+PrimaryKeyConstraint(binding_site_fuzcav.c.ligand_id, deferrable=True,
+                     initially='deferred')

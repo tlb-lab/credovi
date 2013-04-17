@@ -36,7 +36,7 @@ def remove_water_clashes(structure):
     for water in clashes: structure.DeleteAtom(water)
 
 @timer("biological assemblies were generated in {0:.2f} seconds.")
-def generate_biomolecule(structure, pisa):
+def generate_biomolecule(structure, biomt):
     """
     Generates the quaternary assembly of a PDB structure using the top-ranked
     PISA prediction (if available).
@@ -46,161 +46,165 @@ def generate_biomolecule(structure, pisa):
 
     biomolecules = []
 
-    # by default only the first set (1, most stable) is used at the moment
-    for set_serial in pisa:
+    # an assembly equates to a valid biomolecule
+    # a PDB structure can contain more than one biomolecule in the asu (1c3h)
+    for assembly_serial in sorted(biomt):
+        biomolecule = OEMol()
 
-        # an assembly equates to a valid biomolecule
-        # a PDB structure can contain more than one biomolecule in the asu (1c3h)
-        for assembly_serial in sorted(pisa[set_serial].keys()):
-            biomolecule = OEMol()
+        # preserve original PDB header
+        OECopyPDBData(biomolecule, structure)
 
-            # preserve original PDB header
-            OECopyPDBData(biomolecule, structure)
+        # dictionary to keep track of the transformations that were executed
+        # on newly created chains
+        biomol_trans_map = {}
 
-            # dictionary to keep track of the transformations that were executed
-            # on newly created chains
-            biomol_trans_map = {}
+        #
+        cur_chain_id = None
 
-            #
-            cur_chain_id = None
+        # list of all possible new pdb chain identifiers ordered by priority (
+        # A-Z,a-z,0-9)
+        new_chain_ids = [pdb_chain_id for pdb_chain_id, priority in
+                         sorted(CHAIN_IDS.items(), key=itemgetter(1))]
 
-            # list of all possible new pdb chain identifiers ordered by priority (
-            # A-Z,a-z,0-9)
-            new_chain_ids = [pdb_chain_id for pdb_chain_id, priority in
-                             sorted(CHAIN_IDS.items(), key=itemgetter(1))]
+        # remove existing chain identifiers - will be used for identity operations
+        for pdb_chain_id in set(OEAtomGetResidue(atom).GetChainID()
+                                for atom in structure.GetAtoms()):
+            new_chain_ids.remove(pdb_chain_id)
 
-            # remove existing chain identifiers - will be used for identity operations
-            for pdb_chain_id in set(OEAtomGetResidue(atom).GetChainID()
-                                    for atom in structure.GetAtoms()):
-                new_chain_ids.remove(pdb_chain_id)
+        # get the largest entity serial number in the ASU
+        # new entities generated through symmetry operations have to above that
+        struct_max_entity_serial = max(atom.GetIntData('entity_serial')
+                                       for atom in structure.GetAtoms())
 
-            # get the largest entity serial number in the ASU
-            # new entities generated through symmetry operations have to above that
-            struct_max_entity_serial = max(atom.GetIntData('entity_serial')
-                                           for atom in structure.GetAtoms())
+        # iterate through chains that are going to be transformed
+        for pdb_chain_id in biomt[assembly_serial]:
 
-            # iterate through chains that are going to be transformed
-            for pdb_chain_id in pisa[set_serial][assembly_serial]:
-
-                # chain of original structure that is going to be transformed
+            # chain of original structure that is going to be transformed
+            try:
                 molecule = get_subsetmol(structure,OEHasChainID(pdb_chain_id))
 
-                # somehow PISA has chains that are not in the pdb entry:
-                if not molecule.NumAtoms():
-                    app.log.warn("PISA PDB chain identifier {0} cannot be found "
-                                 "in structure!".format(pdb_chain_id))
-                    continue
+            # The PDB chain ID is too long - problably parsing error of REMARK350
+            except TypeError:
+                app.log.warn("BIOMT PDB chain identifier {} is not a single character!"
+                             .format(pdb_chain_id))
+                continue
 
-                # remove PDB header from chain
-                OEClearPDBData(molecule)
+            # somehow PISA has chains that are not in the pdb entry:
+            if not molecule.NumAtoms():
+                app.log.warn("BIOMT PDB chain identifier {0} cannot be found "
+                             "in structure!".format(pdb_chain_id))
+                continue
 
-                # iterate through biounit transformations
-                for operation_serial, details in pisa[set_serial][assembly_serial][pdb_chain_id].items():
+            # remove PDB header from chain
+            OEClearPDBData(molecule)
 
-                    # copy of the object that will be transformed
-                    entity = OEMol(molecule)
+            # iterate through biounit transformations
+            for operation_serial, details in biomt[assembly_serial][pdb_chain_id].items():
 
-                    # transformation details
-                    rotation = details['rotation']
-                    translation = details['translation']
-                    is_at_identity = details['is_at_identity']
+                # copy of the object that will be transformed
+                entity = OEMol(molecule)
 
-                    ### transform entity and add to assembly ###
+                # transformation details
+                rotation = details['rotation']
+                translation = details['translation']
+                is_at_identity = details['is_at_identity']
 
-                    # chain is at identity, no transformation necessary
-                    if is_at_identity:
-                        msg = "identity matrix found for assembly {0} operation {1} chain {2}."
-                        msg = msg.format(assembly_serial, operation_serial, pdb_chain_id)
+                ### transform entity and add to assembly ###
 
-                    # molecule has to be transformed
-                    else:
+                # chain is at identity, no transformation necessary
+                if is_at_identity:
+                    msg = "identity matrix found for assembly {0} operation {1} chain {2}."
+                    msg = msg.format(assembly_serial, operation_serial, pdb_chain_id)
 
-                        # transformation can only be done on conformer
-                        conformer = entity.GetConf(OEHasConfIdx(0))
+                # molecule has to be transformed
+                else:
 
-                        # ROTATE AND TRANSLATE (IN THIS ORDER!)
-                        OERotMatrix(rotation).Transform(conformer)
-                        OETranslation(translation).Transform(conformer)
+                    # transformation can only be done on conformer
+                    conformer = entity.GetConf(OEHasConfIdx(0))
 
-                        msg = "Chain {0} rotated by {1} and translated by {2} "
-                        msg = msg.format(pdb_chain_id,
-                                         "%4.2f " * len(rotation) % tuple(rotation),
-                                         "%5.2f " * len(translation) % tuple(translation))
+                    # ROTATE AND TRANSLATE (IN THIS ORDER!)
+                    OERotMatrix(rotation).Transform(conformer)
+                    OETranslation(translation).Transform(conformer)
 
-                    # first operation on assembly
-                    if operation_serial == 1: app.log.debug(msg)
+                    msg = "Chain {0} rotated by {1} and translated by {2} "
+                    msg = msg.format(pdb_chain_id,
+                                     "%4.2f " * len(rotation) % tuple(rotation),
+                                     "%5.2f " * len(translation) % tuple(translation))
 
-                    # not the first operation - new chain id and entity ids are required
-                    else:
+                # first operation on assembly
+                if operation_serial == 1: app.log.debug(msg)
 
-                        # get new chain identifier, try to keep original
-                        cur_chain_id = new_chain_ids.pop(0)
+                # not the first operation - new chain id and entity ids are required
+                else:
 
-                        # keep track of the transformations that were performed
-                        # on this chain
-                        biomol_trans_map[cur_chain_id] = details
+                    # get new chain identifier, try to keep original
+                    cur_chain_id = new_chain_ids.pop(0)
 
-                        # debug information about the new pdb chain id that was created
-                        app.log.debug(msg + "to generate chain {0}.".format(cur_chain_id))
+                    # keep track of the transformations that were performed
+                    # on this chain
+                    biomol_trans_map[cur_chain_id] = details
 
-                        # set chain and entity id for all atoms
-                        for atom in entity.GetAtoms():
+                    # debug information about the new pdb chain id that was created
+                    app.log.debug(msg + "to generate chain {0}.".format(cur_chain_id))
 
-                            # set new chain id
-                            residue = OEAtomGetResidue(atom)
-                            residue.SetChainID(cur_chain_id)
+                    # set chain and entity id for all atoms
+                    for atom in entity.GetAtoms():
 
-                            # label atom as quaternary and keep track of old pdb chain id
-                            # important later on to map external data
-                            atom.SetIntData('is_quaternary',1)
-                            atom.SetStringData('pdb_chain_asu_id', pdb_chain_id)
+                        # set new chain id
+                        residue = OEAtomGetResidue(atom)
+                        residue.SetChainID(cur_chain_id)
 
-                            # only increase entity serial number for non-solvents
-                            if OENotIsWater(atom):
+                        # label atom as quaternary and keep track of old pdb chain id
+                        # important later on to map external data
+                        atom.SetIntData('is_quaternary',1)
+                        atom.SetStringData('pdb_chain_asu_id', pdb_chain_id)
 
-                                # increment entity serial number
-                                new_entity_serial = atom.GetIntData('entity_serial') + struct_max_entity_serial * operation_serial
-                                atom.SetIntData('entity_serial', new_entity_serial)
+                        # only increase entity serial number for non-solvents
+                        if OENotIsWater(atom):
 
-                    #
+                            # increment entity serial number
+                            new_entity_serial = atom.GetIntData('entity_serial') + struct_max_entity_serial * operation_serial
+                            atom.SetIntData('entity_serial', new_entity_serial)
+
+                #
 
 
-                    # add newly created chain to biomolecule
-                    OEAddMols(biomolecule, entity)
+                # add newly created chain to biomolecule
+                OEAddMols(biomolecule, entity)
 
-            #
+        #
 
-            # remove water molecules that clash in quaternary assembly
-            remove_water_clashes(biomolecule)
+        # remove water molecules that clash in quaternary assembly
+        remove_water_clashes(biomolecule)
 
-            # get all the ligand entity serial numbers from the current assembly
-            ligand_entity_serials = get_ligand_entity_serials(biomolecule)
+        # get all the ligand entity serial numbers from the current assembly
+        ligand_entity_serials = get_ligand_entity_serials(biomolecule)
 
-            # attach or remove from assembly
-            if ligand_entity_serials: biomolecule.SetData('ligand_entity_serials', ligand_entity_serials)
-            else: biomolecule.DeleteData('ligand_entity_serials')
+        # attach or remove from assembly
+        if ligand_entity_serials: biomolecule.SetData('ligand_entity_serials', ligand_entity_serials)
+        else: biomolecule.DeleteData('ligand_entity_serials')
 
-            # debug ligand entity serial number info in biomolecule
-            app.log.debug("Ligand entity serial numbers in assembly {0}: {1}"
-                          .format(assembly_serial, ligand_entity_serials))
+        # debug ligand entity serial number info in biomolecule
+        app.log.debug("Ligand entity serial numbers in assembly {0}: {1}"
+                      .format(assembly_serial, ligand_entity_serials))
 
-            biomolecule.SetTitle(pdbcode)
-            biomolecule.SetIntData('assembly_serial', assembly_serial)
+        biomolecule.SetTitle(pdbcode)
+        biomolecule.SetIntData('assembly_serial', assembly_serial)
 
-            # identify alternate location groups in biomolecule and assign new alternate location codes
-            # or remove completely superimposed residues
-            set_alternate_locations(biomolecule)
+        # identify alternate location groups in biomolecule and assign new alternate location codes
+        # or remove completely superimposed residues
+        set_alternate_locations(biomolecule)
 
-            # reorder the atoms using the residue information associated with each atom
-            OEPDBOrderAtoms(biomolecule)
+        # reorder the atoms using the residue information associated with each atom
+        OEPDBOrderAtoms(biomolecule)
 
-            # assign PDB serial numbers to new atoms
-            OEAssignSerialNumbers(biomolecule)
+        # assign PDB serial numbers to new atoms
+        OEAssignSerialNumbers(biomolecule)
 
-            #
-            OEPerceiveSecondaryStructure(biomolecule)
+        #
+        OEPerceiveSecondaryStructure(biomolecule)
 
-            biomolecules.append(biomolecule)
+        biomolecules.append(biomolecule)
 
     return biomolecules
 

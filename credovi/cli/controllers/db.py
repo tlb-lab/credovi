@@ -23,6 +23,8 @@ class DatabaseController(controller.CementBaseController):
             (['--cascade'], dict(action='store_true', help='CASCADE all drop statements')),
             (['--sure'], dict(action='store_true', help='extra flag that needs to be specified for certain operations on the database')),
             (['--new'], dict(action='store_true', help='copy the data files of all PDB entries that are not in CREDO yet')),
+            (['--no-indexes'], dict(action='store_true', help='')),
+            (['--no-constraints'], dict(action='store_true', help='')),
             (['--parallel'], dict(action='store_true', help='use GNU parallel for certain tasks (cryst only!)')),
             ]
 

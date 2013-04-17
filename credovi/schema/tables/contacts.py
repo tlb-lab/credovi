@@ -6,6 +6,7 @@ will hold 5000 biomolecules.
 
 from sqlalchemy import Boolean, CheckConstraint, Column, DDL, Float, Index, Integer, Table, DefaultClause
 from sqlalchemy.event import listen
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi import app
 from credovi.schema import metadata, schema

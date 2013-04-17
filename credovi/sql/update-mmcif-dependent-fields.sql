@@ -19,6 +19,30 @@ FROM        (
             ) rs
 WHERE       s.pdb = rs.structure_id;
 
+UPDATE credo.structures s
+   SET related_by_pubmed_id = sq.related_by_pubmed_id
+  FROM (
+            WITH sq AS
+                 (
+                    SELECT pdbx_database_id_pubmed as pubmed_id, array_agg(structure_id) pdbs
+                      FROM mmcif.citation
+                     WHERE pdbx_database_id_pubmed > 0
+                  group by pdbx_database_id_pubmed
+                 ),
+                 related AS
+                 (
+                  SELECT s.pdb, unnest(sq.pdbs) as related
+                    FROM credo.xrefs xr
+                    JOIN credo.structures s ON xr.entity_type = 'Structure' and xr.entity_id = s.structure_id
+                    JOIN sq ON xr.xref::int = sq.pubmed_id
+                   WHERE xr.source = 'PubMed'
+                 )
+          SELECT related.pdb, array_agg(DISTINCT related.related ORDER BY related.related) AS related_by_pubmed_id
+            FROM related WHERE related.pdb != related
+        GROUP BY related.pdb
+       ) sq
+ WHERE sq.pdb = s.pdb;
+
 -- UPDATE DEPOSITION AND LATEST MOD DATE
 UPDATE credo.structures s
    SET deposition_date = sq.deposition_date, modified_date = sq.modified_date
@@ -185,7 +209,7 @@ FROM    (
         JOIN    credo.biomolecules b USING(biomolecule_id)
         JOIN    credo.structures s USING(structure_id)
         JOIN    pdb.map_regions m ON s.pdb = m.pdb AND c.pdb_chain_asu_id = m.pdb_chain_id
-        JOIN    chembl.target_dictionary td ON td.protein_accession = m.db_accession_id
+        JOIN    chembl.component_sequences cs ON cs.accession = m.db_accession_id
         WHERE   m.db_source = 'UniProt'
         ) sq
 WHERE   p.chain_id = sq.chain_id;
@@ -370,14 +394,13 @@ UPDATE credo.interfaces i
        AND (cbgn.is_at_identity = false OR cend.is_at_identity = false);
 
 -- RESIDUES IN PROTEIN-PROTEIN INTERFACES
-  INSERT INTO credo.interface_residues
+  INSERT INTO credo.interface_peptide_pairs
   SELECT DISTINCT i.interface_id, rbgn.residue_id, rend.residue_id
     FROM credo.residue_interaction_pairs rip
     JOIN credo.peptides rbgn ON rbgn.residue_id = rip.residue_bgn_id
     JOIN credo.peptides rend ON rend.residue_id = rip.residue_end_id
     JOIN credo.interfaces i ON i.chain_bgn_id = rbgn.chain_id AND i.chain_end_id = rend.chain_id
-   WHERE i.interface_id > (SELECT COALESCE(MAX(interface_id),0) FROM credo.interface_residues)
-         --AND rbgn.entity_type_bm & 32 != 0 AND rend.entity_type_bm & 32 != 0
+   WHERE i.interface_id > (SELECT COALESCE(MAX(interface_id),0) FROM credo.interface_peptide_pairs)
          -- NOT INTRAMOLECULAR RESIDUE INTERACTIONS
          AND rbgn.chain_id != rend.chain_id
 ORDER BY 1,2,3;
@@ -388,8 +411,9 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES
-        FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
+        FOR biomol_id IN   SELECT DISTINCT biomolecule_id
+                             FROM credo.chains c
+                             JOIN credo.oligonucleotides n USING(chain_id)
                             WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.grooves)
                          ORDER BY 1
         LOOP
@@ -448,14 +472,14 @@ UPDATE credo.grooves g
  WHERE sq.groove_id = g.groove_id;
 
 -- RESIDUES IN PROTEIN-DNA/RNA GROOVES
-  INSERT INTO credo.groove_residues
+  INSERT INTO credo.groove_residue_pairs
   SELECT g.groove_id, p.residue_id, n.residue_id
     FROM credo.grooves g
     JOIN credo.peptides p ON p.chain_id = g.chain_prot_id
     JOIN credo.nucleotides n ON n.chain_id = g.chain_nuc_id
     JOIN credo.residue_interaction_pairs rip
          ON rip.residue_bgn_id = p.residue_id AND rip.residue_end_id = n.residue_id
-   WHERE g.groove_id > (SELECT MAX(groove_id) FROM credo.groove_residues)
+   WHERE g.groove_id > (SELECT MAX(groove_id) FROM credo.groove_residue_pairs)
    UNION
   SELECT g.groove_id, p.residue_id, n.residue_id
     FROM credo.grooves g
@@ -463,13 +487,14 @@ UPDATE credo.grooves g
     JOIN credo.nucleotides n ON n.chain_id = g.chain_nuc_id
     JOIN credo.residue_interaction_pairs rip
          ON rip.residue_end_id = p.residue_id AND rip.residue_bgn_id = n.residue_id
-   WHERE g.groove_id > (SELECT COALESCE(MAX(groove_id),0) FROM credo.groove_residues)
+   WHERE g.groove_id > (SELECT COALESCE(MAX(groove_id),0) FROM credo.groove_residue_pairs)
 ORDER BY 1,2,3;
+
 
 -- SET A FLAG FOR GROOVES THAT CONTAIN AT LEAST ONE RESIDUE WITH MISSING ATOMS
 UPDATE credo.grooves g
 SET    has_incomplete_res = true
-FROM   credo.groove_residues gr, credo.peptides p, credo.nucleotides n
+FROM   credo.groove_residue_pairs gr, credo.peptides p, credo.nucleotides n
 WHERE  gr.groove_id = g.groove_id
        AND p.residue_id = gr.residue_prot_id
        AND n.residue_id = gr.residue_nuc_id
@@ -483,11 +508,9 @@ WHERE  gr.groove_id = g.groove_id
         AND (prot.is_at_identity = false OR nuc.is_at_identity = false);
 
 -- BINDING SITES
-  INSERT INTO credo.binding_sites(ligand_id, cath_dmns, scop_pxs, has_incomplete_res,
-                                  has_non_std_res, has_mod_res, has_mut_res)
+  INSERT INTO credo.binding_sites(ligand_id, has_incomplete_res, has_non_std_res,
+                                  has_mod_res, has_mut_res)
   SELECT ligand_id,
-         ARRAY(SELECT * FROM UNNEST(array_agg(distinct cath)) as u(e) where e IS NOT NULL) as cath_dmns,
-         ARRAY(SELECT * FROM UNNEST(array_agg(distinct px)) as u(e) where e IS NOT NULL) as scop_pxs,
          bool_or(is_incomplete) as has_incomplete_res,
          bool_or(is_non_std) as has_non_std_res,
          bool_or(is_modified) as has_mod_res,
@@ -496,20 +519,6 @@ WHERE  gr.groove_id = g.groove_id
     JOIN credo.peptides p ON p.residue_id = bsr.residue_id
 GROUP BY ligand_id
 ORDER BY 1;
-
--- UPDATE BINDING SITE CATH SUPERFAMILY LABELS
-UPDATE credo.binding_sites bs
-   SET hom_superfam = sq.hom_superfam, hom_superfam_label = NULLIF(l.label, 'NULL')
-  FROM (
-        SELECT ligand_id, subltree(d.node, 0, 4) as hom_superfam
-          FROM (
-                SELECT ligand_id, unnest(cath_dmns) as dmn
-                  FROM credo.binding_sites bs
-               ) sq
-          JOIN cath.domains d ON d.dmn = sq.dmn
-       ) sq,
-       cath.labels l
- WHERE sq.ligand_id = bs.ligand_id AND sq.hom_superfam = l.node;
 
 -- SET A FLAG FOR BINDING SITES THAT HAVE MAPPED VARIATIONS
 UPDATE credo.binding_sites bs
@@ -534,32 +543,40 @@ UPDATE credo.binding_sites bs
            FROM pdb.map_regions mr
            JOIN pdb.res_map rm
                 ON mr.pdb = rm.pdb
-                   AND mr.pdb_chain_id = rm.pdb_chain_id
-                   AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
+                AND mr.pdb_chain_id = rm.pdb_chain_id
+                AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
            JOIN credo.peptides p ON p.res_map_id = rm.res_map_id
-          WHERE mr.pdb IS NOT NULL AND mr.db_source in ('Pfam','CATH','SCOP')
+          WHERE mr.pdb IS NOT NULL AND mr.db_source = 'Pfam'
+          UNION
+         SELECT p.chain_id, residue_id, mr.db_source, subltree(d.node, 0, 4)::text
+           FROM pdb.map_regions mr
+           JOIN pdb.res_map rm
+                ON mr.pdb = rm.pdb
+                AND mr.pdb_chain_id = rm.pdb_chain_id
+                AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
+           JOIN credo.peptides p ON p.res_map_id = rm.res_map_id
+           JOIN cath.domains d on d.dmn = mr.db_accession_id
+          WHERE mr.pdb IS NOT NULL AND mr.db_source = 'CATH'
          ),
          domains AS
          (
-             INSERT INTO credo.domains(chain_id, db_source, db_accession_id)
-             SELECT DISTINCT chain_id, db_source, db_accession_id
+             INSERT INTO credo.domains(db_source, db_accession_id)
+             SELECT DISTINCT db_source, db_accession_id
                FROM result
-           ORDER BY 1,2,3
+           ORDER BY 1,2
           RETURNING credo.domains.*
          )
-  INSERT INTO credo.domain_to_peptide
+  INSERT INTO credo.domain_peptides
   SELECT DISTINCT d.domain_id, r.residue_id
     FROM result r
     JOIN domains d
-         ON d.chain_id = r.chain_id
-         AND d.db_source = r.db_source AND d.db_accession_id = r.db_accession_id
+         ON d.db_source = r.db_source AND d.db_accession_id = r.db_accession_id
 ORDER BY 1,2;
 
 UPDATE credo.domains cd
    SET description = l.label
-  FROM cath.domains d
-  JOIN cath.labels l ON subltree(d.node, 0, 4) = l.node
- WHERE d.dmn = cd.db_accession_id AND cd.db_source = 'CATH' AND l.label != 'NULL';
+  FROM cath.labels l
+ WHERE cd.db_accession_id = l.node::text AND cd.db_source = 'CATH' AND l.label != 'NULL';
 
 UPDATE credo.domains d
    SET description = p.description
@@ -571,3 +588,58 @@ UPDATE credo.domains d
     FROM credo.binding_site_residues bsr
     JOIN credo.domain_peptides p ON bsr.residue_id = p.residue_id
 ORDER BY 1,2;
+
+UPDATE credo.domains d
+   SET num_chains = sq.num_chains
+  FROM (
+          SELECT domain_id, count(distinct chain_id) as num_chains
+            FROM credo.domain_peptides dp
+            JOIN credo.peptides p USING(residue_id)
+        GROUP BY domain_id
+       ) sq
+ WHERE sq.domain_id = d.domain_id;
+
+UPDATE credo.domains d
+   SET num_binding_sites = sq.num_binding_sites
+  FROM (
+          SELECT domain_id, count(distinct ligand_id) as num_binding_sites
+            FROM credo.binding_site_domains bsd
+        GROUP BY domain_id
+        order by 2 DESC
+       ) sq
+ WHERE sq.domain_id = d.domain_id;
+
+UPDATE credo.domains d
+   SET num_bs_with_drug_likes = sq.num_bs_with_drug_likes
+  FROM (
+          SELECT domain_id, count(distinct l.ligand_id) as num_bs_with_drug_likes
+            FROM credo.binding_site_domains bsd
+            JOIN credo.ligands l on l.ligand_id = bsd.ligand_id
+            JOIN pdbchem.chem_comps cc ON cc.het_id = l.ligand_name
+           WHERE cc.is_drug_like = true
+        GROUP BY domain_id
+        order by 2 DESC
+       ) sq
+ WHERE sq.domain_id = d.domain_id;
+
+ UPDATE credo.domains d
+   SET num_bs_with_fragments = sq.num_bs_with_fragments
+  FROM (
+          SELECT domain_id, count(distinct l.ligand_id) as num_bs_with_fragments
+            FROM credo.binding_site_domains bsd
+            JOIN credo.ligands l on l.ligand_id = bsd.ligand_id
+            JOIN pdbchem.chem_comps cc ON cc.het_id = l.ligand_name
+           WHERE cc.is_fragment = true
+        GROUP BY domain_id
+        order by 2 DESC
+       ) sq
+ WHERE sq.domain_id = d.domain_id;
+
+  INSERT INTO credo.peptide_features(res_map_id, feature_type, description, external_id)
+  SELECT DISTINCT res_map_id, feature_type, description, external_id
+    from pdb.res_map m
+    JOIN uniprot.features f
+         ON m.uniprot = f.accession
+         AND m.uniprot_res_num between f.feature_begin AND f.feature_end
+   WHERE feature_type NOT IN ('chain','domain','helix','splice variant','strand','turn')
+ORDER BY 1;

@@ -46,6 +46,10 @@ def main():
             from credovi.run import molstrings
             molstrings.do(controller)
 
+        elif controller.command == 'surfareas':
+            from credovi.run import surfareas
+            surfareas.do(controller)
+
     # close the application
     app.close()
 

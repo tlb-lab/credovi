@@ -10,14 +10,40 @@ class LigandController(controller.CementBaseController):
         stacked_on = None
         config_defaults = dict(progressbar=False)
         arguments = [
+            (['-A', '--all'],
+                dict(action='store_true',
+                     help='Process all structures that can be found in the appropriate directory for the given task.')),
+
+            (['-Q', '--quat'],
+                dict(action='store_true',
+                     help='Only consider quaternary assemblies')),
+
+            (['-S', '--structures'],
+                dict(action='store', metavar='PDB CODES',
+                     help='PDB structures that should be processed')),
+
+            (['-O', '--offset'],
+                dict(action='store', metavar='PDB CODE',
+                     help='PDB code to use as an offset for processing')),
+
+            (['-N', '--new'],
+                dict(action='store_true',
+                     help='Only structures that have not been processed yet')),
+
+            (['-I', '--incremental'],
+                dict(action='store_true',
+                     help='only process new data')),
+
+            (['-T', '--testset'],
+                dict(action='store', metavar='SIZE',
+                     help='Only process PDB entries given in the test set')),
+
             (['-P', '--progressbar'],
                 dict(action='store_true', help='use a progressbar')),
             (['--dry-run'],
                 dict(action='store_true', help='generate data but do not insert')),
             (['--usr'],
                 dict(action='store_true', help='also generate and insert USR moments for ligand structures')),
-            (['--incremental'],
-                dict(action='store_true', help='only process new data')),
             ]
 
     @controller.expose(hide=True, aliases=['run'])
@@ -37,6 +63,12 @@ class LigandController(controller.CementBaseController):
 
     @controller.expose(hide=False, help="insert ligand structures in different file formats")
     def molstrings(self):
+        """
+        """
+        pass
+
+    @controller.expose(hide=False, help="calculate buried surface areas")
+    def surfareas(self):
         """
         """
         pass

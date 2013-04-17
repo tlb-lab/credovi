@@ -8,18 +8,6 @@ JOIN        mmcif.citation c ON s.pdb = c.structure_id
 WHERE       pdbx_database_id_PubMed > 0
 ORDER BY    s.structure_id;
 
--- UNIPROT ENTRIES FOR CHAINS
-INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref)
-SELECT      DISTINCT 'Chain', c.chain_id, 'UniProt', m.uniprot
-FROM        credo.chains c
-JOIN        credo.biomolecules b USING(biomolecule_id)
-JOIN        credo.structures s USING(structure_id)
-JOIN        pdb.res_map m
-            ON m.pdb = s.pdb
-            AND m.pdb_chain_id = c.pdb_chain_asu_id
-WHERE       m.uniprot IS NOT NULL
-ORDER BY    chain_id, uniprot;
-
 -- CROSS REFERENCES FOR PDB CHAINS FROM MSD SIFTS
   INSERT INTO credo.xrefs(entity_type, entity_id, source, xref)
   SELECT DISTINCT 'Chain', c.chain_id, db_source, db_accession_id
@@ -50,7 +38,7 @@ ORDER BY    2,4;
 -- CHEMBL COMPOUNDS
 INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref, description)
 SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'ChEMBL Compound', u.chembl_id as xref, md.pref_name
-FROM        credo.unichem_pdb_to_chembl u
+FROM        scifdw.unichem_pdb_to_chembl u
 JOIN        pdbchem.chem_comps cp ON cp.het_id = u.het_id
 LEFT JOIN   chembl.molecule_dictionary md on md.chembl_id = u.chembl_id
 ORDER BY    2,4;
@@ -59,7 +47,14 @@ ORDER BY    2,4;
 INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref)
 SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'KEGG Compound', u.compound_id as xref
 FROM        pdbchem.chem_comps cp
-JOIN        credo.unichem_pdb_to_kegg u ON cp.het_id = u.het_id
+JOIN        scifdw.unichem_pdb_to_kegg u ON cp.het_id = u.het_id
+ORDER BY    2,4;
+
+-- CHEBI COMPOUNDS / REQUIRES SCIFDW FOREIGN DATA WRAPPER!!!
+INSERT      INTO credo.xrefs(entity_type, entity_id, source, xref)
+SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'ChEBI', u.chebi_id as xref
+FROM        pdbchem.chem_comps cp
+JOIN        scifdw.unichem_pdb_to_chebi u ON cp.het_id = u.het_id
 ORDER BY    2,4;
 
 -- Protein targets from ChEMBL - identified via UniProt

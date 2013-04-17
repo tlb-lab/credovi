@@ -118,95 +118,59 @@ def get_pdb_sstruct_info(pdb):
 
     return sstruct_info
 
-def get_pisa_data(pdb):
+def get_biomt(pdb):
     """
     """
     statement = text("""
-                SELECT      s.serial as set_serial, a.serial as assembly_serial, a.mmsize as assembly_size, pdb_select, rotation, translation, is_at_identity
-                FROM        pisa.entries e
-                JOIN        pisa.sets s ON s.entry_id = e.entry_id
-                JOIN        pisa.assemblies a ON a.set_id = s.set_id
-                JOIN        pisa.molecules m ON m.assembly_id = a.assembly_id
-                WHERE       -- CHECK IF PISA PREDICTION EXISTS
-                            e.status = 'Ok'
-                            -- FIRST SET IS ALWAYS THE TOP-RATED
-                            AND s.serial = 1
-                            -- ONLY STABLE ASSEMBLIES
-                            AND a.is_stable = true
-                            -- ONLY ASSEMBLIES CONTAINING BIOMOLECULES
-                            AND a.has_polymer = true
-                            -- FOR PDB CODE
-                            AND e.pdb = :pdb
-                            -- ONLY COMPLETE CHAINS
-                            AND LENGTH(pdb_select) = 1
-                ORDER BY    s.serial, a.serial;
-                """)
+                        SELECT assembly_serial, assembly_size, is_monomeric,
+                               pdb_chain_id, rotation, translation, is_at_identity
+                          FROM pdb.biomt b
+                          JOIN pdb.biomt_ops o USING(biomt_id)
+                         WHERE pdb = :pdb
+                      ORDER BY 1,3
+                     """)
 
     # fetch data from pisa database
     result = engine.execute(statement, pdb=pdb.upper()).fetchall()
 
-    pisa = {}
-    ASSEMBLY_TOO_LARGE = False
+    biomt = {}
+    is_monomeric = False
 
-    # transform result into dictionary data structure
-    for set_serial, assembly_iter in groupby(result, key=itemgetter(0)):
-        pisa[set_serial] = {}
+    # iterate through assemblies
+    for (assembly_serial, assembly_size, is_monomeric), chain_iter in groupby(result, key=itemgetter(0,1,2)):
+        biomt[assembly_serial] = {}
 
-        # iterate through assemblies
-        for (assembly_serial, assembly_size), chain_iter in groupby(assembly_iter, key=itemgetter(1,2)):
-            pisa[set_serial].update({assembly_serial:{}})
+        # do not return pisa data for large assemblies / asu will be used instead
+        if assembly_size > 26:
+            app.log.warn("one of the predicted assemblies contains {} chains - "
+                         "the asymmetric unit will be used instead."
+                         .format(assembly_size))
+            biomt = {}
+            break
 
-            # warn if an assembly will be ignored
-            # only 194 pdb structures have assemblies with more than 26 chains
-            if assembly_size > 26: ASSEMBLY_TOO_LARGE = True
+        # the complete ASU is monomeric and has to be split into individual chains
+        if is_monomeric: break
 
-            # iterate through chains
-            for pdb_chain_id, operation_iter in groupby(chain_iter, key=itemgetter(3)):
-                pisa[set_serial][assembly_serial].update({str(pdb_chain_id):{}})
+        # iterate through chains
+        for pdb_chain_id, operation_iter in groupby(chain_iter, key=itemgetter(3)):
+            biomt[assembly_serial].update({str(pdb_chain_id):{}})
 
-                for operation_serial, operation in enumerate(operation_iter,1):
-                    rotation, translation, is_at_identity = operation[4:]
+            for operation_serial, operation in enumerate(operation_iter,1):
+                rotation, translation, is_at_identity = operation[4:]
 
-                    details = {'rotation': OEFloatArray(rotation),
-                               'translation': OEFloatArray(translation),
-                               'is_at_identity': is_at_identity}
+                details = {'rotation': OEFloatArray(rotation),
+                           'translation': OEFloatArray(translation),
+                           'is_at_identity': is_at_identity}
 
-                    pisa[set_serial][assembly_serial][pdb_chain_id][operation_serial] = details
+                biomt[assembly_serial][pdb_chain_id][operation_serial] = details
 
     # debug assembly information
-    app.log.debug("PISA predicts {0} assembly/assemblies."
-                  .format(max(pisa[1].keys())))
+    try:
+        app.log.debug("BIOMT contains {0} assembly/assemblies."
+                      .format(max(biomt.keys())))
 
-    # do not return pisa data for large assemblies / asu will be used instead
-    if ASSEMBLY_TOO_LARGE:
-        app.log.warn("At least one of the predicted assemblies is too large - "
-                     "the asymmetric unit will be used instead.")
-        pisa = {}
+    # PDB entry does not have a REMARK 350
+    except ValueError:
+        app.log.debug("NO REMARK 350 found.")
 
-    return pisa
-
-def get_pisa_num_assembly_sets(pdb):
-    """
-    """
-    statement = text("""
-                          SELECT num_assembly_sets, s.serial, a.is_stable, a.has_polymer
-                            FROM pisa.entries e
-                       LEFT JOIN pisa.sets s ON s.entry_id = e.entry_id
-                       LEFT JOIN pisa.assemblies a ON a.set_id = s.set_id
-                           WHERE pdb = :pdb AND status = 'Ok'
-                        ORDER BY 2,3,4;
-                     """)
-
-    result = engine.execute(statement, pdb=pdb.upper()).fetchall()
-
-    for row in result:
-        num_assembly_sets, set_serial, is_stable, has_polymer = row.values()
-
-        # PISA predicts monomer, ASU has to be split
-        if num_assembly_sets == 0: return 0
-
-        # return the number of assemblies if stable
-        if set_serial == 1 and is_stable and has_polymer: return num_assembly_sets
-
-    # no PISA entry, proceed with ASU
-    return -1
+    return biomt, is_monomeric

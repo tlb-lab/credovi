@@ -24,7 +24,7 @@
 
     "schema":
     {
-        "current_biomol_max": 120000,
+        "current_biomol_max": 130000,
         "atoms_partition_size": 5000,
         "contacts_partition_size": 2500
     }

@@ -7,41 +7,6 @@
    WHERE lc1.ligand_id != lc2.ligand_id
 ORDER BY 1,2,3;
 
----- insert new ligand-ligand interactions
---DO $$
---    DECLARE
---        biomol_id INTEGER;
---    BEGIN
---        -- loop through all biomolecules that are not in the ligand-ligand interactions table yet
---        FOR biomol_id IN   SELECT biomolecule_id
---                             FROM credo.biomolecules
---                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0)
---                                                      FROM credo.lig_lig_interactions)
---                         ORDER BY 1
---        LOOP
---            EXECUTE
---            '
---                 INSERT INTO credo.lig_lig_interactions(biomolecule_id, lig_bgn_id, lig_end_id, has_clash)
---                 SELECT DISTINCT cs.biomolecule_id,
---                        hbgn.ligand_id AS lig_bgn_id, hend.ligand_id AS lig_end_id,
---                        bool_or(cs.is_clash)
---                   FROM credo.contacts cs
---                   JOIN credo.hetatms hbgn ON hbgn.atom_id = cs.atom_bgn_id
---                   JOIN credo.hetatms hend ON hend.atom_id = cs.atom_end_id
---                  WHERE cs.biomolecule_id = $1
---                        -- no intramolecular contacts
---                        AND cs.is_same_entity = false
---                        AND hbgn.ligand_id != hend.ligand_id
---                        -- only feature contacts
---                        AND cs.distance <= 4.5
---               GROUP BY cs.biomolecule_id, hbgn.ligand_id, hend.ligand_id
---               ORDER BY 1,2,3;
---            ' USING biomol_id;
---
---            RAISE NOTICE 'inserted ligand-ligand interactions for biomolecule %', biomol_id;
---        END LOOP;
---END$$;
-
 -- update ligand-ligand interactions that are not from the ASU
 UPDATE credo.lig_lig_interactions li
    SET is_quaternary = true

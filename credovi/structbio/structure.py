@@ -22,6 +22,66 @@ def get_structure(path, pdbcode=None):
                 if pdbcode: structure.SetTitle(str(pdbcode))
                 return structure
 
+def get_assembly_sets(args):
+    """
+    Returns a list of assembly sets in the form [(PDB, [1XXX-0.oeb, 1XXX-1.oeb,...]),...].
+    Only used for cryst. All assemblies must have been processed before.
+    """
+    def _get_assembly_sets(pdbs):
+        """
+        """
+        assemblysets = []
+
+        # iterate through all specified pdb codes / remove possible newline character
+        for pdb in pdbs:
+
+            # keep all assemblies of the set together
+            assemblyset = []
+
+            # OEB files are divided into folders by 2nd & 3rd character of PDB code
+            assembly_dir = os.path.join(app.config.get('directories','quat_oeb'),
+                                        pdb[1:3].lower(), pdb.lower())
+
+            if os.path.exists(assembly_dir):
+
+                # add all assemblies in directory to our assembly set
+                for oeb in os.listdir(assembly_dir):
+                    assemblyset.append(oeb)
+
+                # add assembly set to all the other assembly sets
+                if assemblyset:
+                    assemblysets.append((pdb.upper(), assemblyset))
+
+            # no assemblies exists for the given PDB code
+            else:
+                app.log.warn("no assembly set found for PDB entry: {pdb}"
+                             .format(pdb=pdb))
+
+        return assemblysets
+
+    # set mirror to quaternary assemblies
+    if args.quat:
+
+        # get all available assemblies
+        if args.all:
+            pdbs = []
+
+        # a list of PDB codes was provided on the command line
+        elif args.structures:
+            pdbs = [pdb.upper() for pdb in args.structures.strip().split(',') if pdb]
+
+        # PDB codes are taken from a test set in the config file
+        elif args.testset:
+            pdbs = map(string.upper, app.config['test sets'][args.testset])
+
+        assemblysets = _get_assembly_sets(pdbs)
+
+    # get only the asymmetric unit structures
+    else:
+        assemblysets = []
+
+    return sorted(assemblysets)
+
 def get_aromatic_rings(structure, patterns):
     """
     """

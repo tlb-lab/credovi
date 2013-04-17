@@ -1,11 +1,13 @@
-from sqlalchemy import Boolean, Column, DDL, DefaultClause, Float, Index, Integer, String, Table, UniqueConstraint
+from sqlalchemy import (Boolean, Column, DDL, DefaultClause, Float, Index, Integer,
+                        String, Table, UniqueConstraint)
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, Vector3D, comment_on_table_elements
 
 # table to hold aromatic rings
 aromatic_rings = Table('aromatic_rings',metadata,
-                       Column('aromatic_ring_id', Integer, primary_key=True),
+                       Column('aromatic_ring_id', Integer, nullable=False),
                        Column('biomolecule_id', Integer, nullable=False),
                        Column('residue_id', Integer, nullable=False),
                        Column('path', PTree),
@@ -17,6 +19,8 @@ aromatic_rings = Table('aromatic_rings',metadata,
                        Column('is_hetero_aromatic', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                        schema=schema)
 
+PrimaryKeyConstraint(aromatic_rings.c.aromatic_ring_id, deferrable=True,
+                     initially='deferred')
 Index('idx_aromatic_rings', aromatic_rings.c.residue_id, aromatic_rings.c.ring_serial, unique=True)
 Index('idx_aromatic_rings_biomolecule_id', aromatic_rings.c.biomolecule_id, aromatic_rings.c.ring_serial, unique=True)
 Index('idx_aromatic_rings_path', aromatic_rings.c.path, postgresql_using='gist')
