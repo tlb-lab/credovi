@@ -360,14 +360,19 @@ def do(controller):
 
                 # use the connection table to identify covalent bonds
                 # can identify covalent bonds of unusual length as well
-                if atom_end in atom_bgn.GetAtoms(): SIFt[1] = 1
+                if atom_end in atom_bgn.GetAtoms():
+                    SIFt[1] = 1
 
                 # check for atomic clash of non-bonded atoms
-                elif distance < sum_cov_radii - 0.1: SIFt[0] = 1
+                elif distance <= sum_cov_radii:
+                    SIFt[0] = 1
 
                 # check vdw radii
-                elif distance < sum_vdw_radii: SIFt[2] = 1
-                elif distance <= sum_vdw_radii + 0.1: SIFt[3] = 1 # + vdw comp factor
+                elif distance < sum_vdw_radii:
+                    SIFt[2] = 1 # vdw clash
+
+                elif distance <= sum_vdw_radii + 0.1:
+                    SIFt[3] = 1 # + vdw comp factor
 
                 # label as proximal
                 else: SIFt[4] = 1
