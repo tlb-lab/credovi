@@ -9,10 +9,12 @@ from math import sqrt
 from itertools import combinations, compress, groupby
 
 import tablib
+from openeye.oechem import *
 
 from credovi import __path__, app
 from credovi.structbio import AromaticRing
 from credovi.structbio import structure as struct
+from credovi.structbio.contacts import get_ring_interactions
 from credovi.structbio.interactions import (is_hbond, is_weak_hbond, is_xbond,
                                              is_aromatic, is_carbonyl, is_metal_complex,
                                              is_ionic, is_hydrophobic)
@@ -26,6 +28,8 @@ def do(controller):
 
     # get the command line arguments and options
     args = controller.pargs
+
+    print args
 
     # check if the output directory exists
     if args.output_dir and not os.path.exists(args.output_dir): pass
@@ -81,6 +85,7 @@ def do(controller):
                    'is_aromatic','is_hydrophobic','is_carbonyl')
 
         ctdata = tablib.Dataset([], headers=headers, title='contacts')
+        ctdata.pop()
 
         OEAssignAromaticFlags(structure)
 
@@ -113,7 +118,8 @@ def do(controller):
 
         # calculate ring-interaction geometries
         if args.ri:
-            ardata, ridata = get_ring_interactions(structure)
+            patterns = app.config["atom types"]["aromatic"].values()
+            ardata, ridata = get_ring_interactions(structure, patterns)
             databook.add_sheet(ardata)
             databook.add_sheet(ridata)
 
@@ -229,7 +235,7 @@ def do(controller):
 
             row = ['\N' for i in range(5)]
 
-            row[0] = '3E5A' # PDB
+            row[0] = structure.GetTitle() # PDB
             row[1] = res_bgn.GetSerialNumber()
             row[2] = res_end.GetSerialNumber()
             row[3] = distance
@@ -253,9 +259,13 @@ def do(controller):
         if args.contacts:
             if args.output_dir:
                 path = os.path.join(args.output_dir, '{name}.{ext}'
-                                    .format(name=filename, ext=args.format))
+                                    .format(name=filename, ext=args.fmt))
 
                 # write the data in the specified format
-                with open(path,'wb') as fh: fh.write(getattr(ctdata, args.format))
+                with open(path,'wb') as fh:
+                    fh.write(getattr(ctdata, args.fmt))
+
+            else:
+                app.log.warn("cannot write data: no output directory specified.")
 
         if args.pymol: pym(args, databook, filename)

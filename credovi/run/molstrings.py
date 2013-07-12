@@ -145,7 +145,7 @@ def do(controller):
 
         # insert usr moments for all ligands
         engine.execute("""
-                          INSERT INTO {schema}.ligand_usr
+                          INSERT INTO {schema}.ligand_usr(ligand_id, usr_space, usr_moments)
                             WITH moments AS
                                  (
                                      SELECT lm.ligand_id, openeye.usrcat(oeb) as moments

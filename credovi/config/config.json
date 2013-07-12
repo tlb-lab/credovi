@@ -1,8 +1,8 @@
 {
     "database":
     {
-        "echo": false,
-        "schema": "credo",
+        "echo": true,
+        "schema": "credo_dev",
         "url": "postgresql+psycopg2://adrian:1r1d1Um@bahamut.bioc.cam.ac.uk:5432/cryst"
     },
 
@@ -24,7 +24,7 @@
 
     "schema":
     {
-        "current_biomol_max": 130000,
+        "current_biomol_max": 145000,
         "atoms_partition_size": 5000,
         "contacts_partition_size": 2500
     }

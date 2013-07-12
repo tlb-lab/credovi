@@ -3,12 +3,16 @@
 -- update CREDO because these tables will only contain the new data.          --
 --------------------------------------------------------------------------------
 
-
-
 -- INSERT STRUCTURES
-  INSERT INTO credo.structures(pdb)
-  SELECT DISTINCT pdb
-    FROM credo.raw_atoms r
+  INSERT INTO credo_dev.structures(pdb)   
+    WITH query AS
+         (
+          SELECT DISTINCT pdb  
+           FROM credo_dev.raw_atoms r 
+         )
+  SELECT pdb
+    FROM query, mmcif.entry e
+   WHERE e.structure_id = query.pdb
 ORDER BY pdb;
 
 -- INSERT BIOMOLECULES THROUGH STRUCTURE LOOP
@@ -18,20 +22,20 @@ DO $$
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES WITHOUT RESIDUES
         FOR struct_id IN    SELECT structure_id
-                              FROM credo.structures
-                         LEFT JOIN credo.biomolecules b USING(structure_id)
+                              FROM credo_dev.structures
+                         LEFT JOIN credo_dev.biomolecules b USING(structure_id)
                              WHERE b.structure_id IS NULL
                           ORDER BY 1
         LOOP
             -- EXECUTE INSERT
             EXECUTE
             '
-                INSERT INTO credo.biomolecules(structure_id, path, assembly_serial)
+                INSERT INTO credo_dev.biomolecules(structure_id, path, assembly_serial)
                 SELECT DISTINCT s.structure_id,
                                 (s.pdb || ''/'' || assembly_serial)::ptree as path,
                                 assembly_serial
-                  FROM credo.structures s
-                  JOIN credo.raw_atoms rw on rw.pdb = s.pdb
+                  FROM credo_dev.structures s
+                  JOIN credo_dev.raw_atoms rw on rw.pdb = s.pdb
                  WHERE s.structure_id = $1
               ORDER BY structure_id, assembly_serial;
             ' USING struct_id;
@@ -47,22 +51,22 @@ DO $$
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES WITHOUT RESIDUES
         FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
+                             FROM credo_dev.biomolecules
                            EXCEPT
                            SELECT DISTINCT biomolecule_id
-                             FROM credo.chains
+                             FROM credo_dev.chains
                          ORDER BY 1
         LOOP
             -- EXECUTE INSERT
             EXECUTE
             '
-                INSERT INTO credo.chains(biomolecule_id, pdb_chain_id, pdb_chain_asu_id, path, is_at_identity)
+                INSERT INTO credo_dev.chains(biomolecule_id, pdb_chain_id, pdb_chain_asu_id, path, is_at_identity)
                 SELECT DISTINCT b.biomolecule_id, rw.pdb_chain_id, rw.pdb_chain_asu_id,
                                 b.path || rw.pdb_chain_id as path,
                                 rw.pdb_chain_id = rw.pdb_chain_asu_id as is_at_identity
-                  FROM credo.raw_atoms rw
-                  JOIN credo.structures s ON s.pdb = rw.pdb
-                  JOIN credo.biomolecules b
+                  FROM credo_dev.raw_atoms rw
+                  JOIN credo_dev.structures s ON s.pdb = rw.pdb
+                  JOIN credo_dev.biomolecules b
                        ON s.structure_id = b.structure_id
                        AND b.assembly_serial = rw.assembly_serial
                  WHERE b.biomolecule_id = $1
@@ -80,22 +84,22 @@ DO $$
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES WITHOUT RESIDUES
         FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
-                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.residues)
+                             FROM credo_dev.biomolecules
+                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.residues)
                          ORDER BY 1
         LOOP
             -- EXECUTE INSERT
             EXECUTE
             '
-              INSERT INTO credo.residues(biomolecule_id, chain_id, path, res_name, res_num,
+              INSERT INTO credo_dev.residues(biomolecule_id, chain_id, path, res_name, res_num,
                                          ins_code, entity_type_bm)
               SELECT DISTINCT b.biomolecule_id, c.chain_id,
                              c.path || (rw.res_name || ''`'' || rw.res_num::text || TRIM(rw.ins_code)),
                              rw.res_name, rw.res_num, rw.ins_code, rw.entity_type_bm
-                FROM credo.structures s
-                JOIN credo.biomolecules b ON b.structure_id = s.structure_id
-                JOIN credo.chains c on c.biomolecule_id = b.biomolecule_id
-                JOIN credo.raw_atoms rw
+                FROM credo_dev.structures s
+                JOIN credo_dev.biomolecules b ON b.structure_id = s.structure_id
+                JOIN credo_dev.chains c on c.biomolecule_id = b.biomolecule_id
+                JOIN credo_dev.raw_atoms rw
                      ON s.pdb = rw.pdb
                      AND b.assembly_serial = rw.assembly_serial
                      AND c.pdb_chain_id = rw.pdb_chain_id
@@ -113,13 +117,13 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
-                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.atoms)
+                             FROM credo_dev.biomolecules
+                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.atoms)
                          ORDER BY 1
         LOOP
             EXECUTE
             '
-              INSERT INTO credo.atoms(biomolecule_id, residue_id, atom_serial, group_pdb,
+              INSERT INTO credo_dev.atoms(biomolecule_id, residue_id, atom_serial, group_pdb,
                                       atom_name, alt_loc, coords, occupancy, b_factor,
                                       element, hyb, tripos_atom_type, is_donor, is_acceptor,
                                       is_aromatic, is_weak_acceptor, is_weak_donor, is_hydrophobe,
@@ -131,15 +135,15 @@ DO $$
                      is_aromatic, is_weak_acceptor, is_weak_donor, is_hydrophobe,
                      is_metal, is_pos_ionisable, is_neg_ionisable, is_xbond_donor,
                      is_xbond_acceptor, is_carbonyl_oxygen, is_carbonyl_carbon
-                FROM credo.raw_atoms rw
-                JOIN credo.structures s ON rw.pdb = s.pdb
-                JOIN credo.biomolecules b
+                FROM credo_dev.raw_atoms rw
+                JOIN credo_dev.structures s ON rw.pdb = s.pdb
+                JOIN credo_dev.biomolecules b
                      ON b.structure_id = s.structure_id
                      AND b.assembly_serial = rw.assembly_serial
-                JOIN credo.chains c
+                JOIN credo_dev.chains c
                      ON c.biomolecule_id = b.biomolecule_id
                      AND c.pdb_chain_id = rw.pdb_chain_id
-                JOIN credo.residues r
+                JOIN credo_dev.residues r
                      ON r.chain_id = c.chain_id
                      AND r.res_num = rw.res_num
                      AND r.ins_code = rw.ins_code
@@ -158,17 +162,17 @@ END$$;
                     biomol_id INTEGER;
                 BEGIN
                     FOR biomol_id IN   SELECT biomolecule_id
-                                         FROM credo.biomolecules
+                                         FROM credo_dev.biomolecules
                                      ORDER BY 1
                     LOOP
                         BEGIN
                             EXECUTE
                             '
-                            UPDATE credo.atoms a
+                            UPDATE credo_dev.atoms a
                                SET path = CASE WHEN a.alt_loc = '' '' THEN r.path || a.atom_name
                                                ELSE r.path || (a.atom_name || ''`'' || a.alt_loc)
                                           END
-                              FROM credo.residues r
+                              FROM credo_dev.residues r
                              WHERE r.residue_id = a.residue_id
                                    AND a.biomolecule_id = $1
                             ' USING biomol_id;
@@ -187,13 +191,13 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
-                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.contacts)
+                             FROM credo_dev.biomolecules
+                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.contacts)
                          ORDER BY 1
         LOOP
             EXECUTE
             '
-              INSERT INTO credo.contacts(biomolecule_id, atom_bgn_id, atom_end_id, distance,
+              INSERT INTO credo_dev.contacts(biomolecule_id, atom_bgn_id, atom_end_id, distance,
                                          structural_interaction_type_bm, is_same_entity, is_clash, is_covalent,
                                          is_vdw_clash, is_vdw, is_proximal, is_hbond, is_weak_hbond,
                                          is_xbond, is_ionic, is_metal_complex, is_aromatic, is_hydrophobic, is_carbonyl)
@@ -201,15 +205,15 @@ DO $$
                      rw.is_same_entity, is_clash, is_covalent, is_vdw_clash, is_vdw, is_proximal, is_hbond,
                      is_weak_hbond,
                      is_xbond, is_ionic, is_metal_complex, rw.is_aromatic, is_hydrophobic, is_carbonyl
-                FROM credo.raw_contacts rw
-                JOIN credo.structures s ON s.pdb = rw.pdb
-                JOIN credo.biomolecules b
+                FROM credo_dev.raw_contacts rw
+                JOIN credo_dev.structures s ON s.pdb = rw.pdb
+                JOIN credo_dev.biomolecules b
                      ON s.structure_id = b.structure_id
                      AND b.assembly_serial = rw.assembly_serial
-                JOIN credo.atoms a1
+                JOIN credo_dev.atoms a1
                      ON a1.biomolecule_id = b.biomolecule_id
                      AND a1.atom_serial = rw.atom_bgn_serial
-                JOIN credo.atoms a2
+                JOIN credo_dev.atoms a2
                      ON a2.biomolecule_id = b.biomolecule_id
                      AND a2.atom_serial = rw.atom_end_serial
                WHERE a1.biomolecule_id = $1
@@ -221,7 +225,7 @@ DO $$
 END$$;
 
 -- INSERT LIGANDS
-  INSERT INTO credo.ligands(biomolecule_id, path, entity_serial, pdb_chain_id, res_num,
+  INSERT INTO credo_dev.ligands(biomolecule_id, path, entity_serial, pdb_chain_id, res_num,
                             ligand_name, num_hvy_atoms, ism)
   SELECT DISTINCT b.biomolecule_id,
                   -- PTREE LABEL
@@ -233,9 +237,9 @@ END$$;
                   )::ptree,
                   entity_serial, rw.pdb_chain_id, rw.res_num,
                   rw.ligand_name, rw.num_hvy_atoms, rw.ism
-    FROM credo.structures s
-    JOIN credo.biomolecules b ON b.structure_id = s.structure_id
-    JOIN credo.raw_ligands rw
+    FROM credo_dev.structures s
+    JOIN credo_dev.biomolecules b ON b.structure_id = s.structure_id
+    JOIN credo_dev.raw_ligands rw
          ON rw.pdb = s.pdb
          AND rw.assembly_serial = b.assembly_serial
 ORDER BY 1,3,4;
@@ -246,28 +250,28 @@ DO $$
         lig_id INTEGER;
     BEGIN
         FOR lig_id IN   SELECT ligand_id
-                          FROM credo.ligands
-                         WHERE ligand_id > (SELECT COALESCE(max(ligand_id),0) FROM credo.ligand_components)
+                          FROM credo_dev.ligands
+                         WHERE ligand_id > (SELECT COALESCE(max(ligand_id),0) FROM credo_dev.ligand_components)
                       ORDER BY 1
         LOOP
             EXECUTE
             '
-                INSERT INTO credo.ligand_components(ligand_id, residue_id, het_id)
+                INSERT INTO credo_dev.ligand_components(ligand_id, residue_id, het_id)
                 SELECT DISTINCT l.ligand_id, r.residue_id, r.res_name
-                  FROM credo.raw_atoms rw
-                  JOIN credo.structures s ON s.pdb = rw.pdb
-                  JOIN credo.biomolecules b
+                  FROM credo_dev.raw_atoms rw
+                  JOIN credo_dev.structures s ON s.pdb = rw.pdb
+                  JOIN credo_dev.biomolecules b
                        ON b.structure_id = s.structure_id
                        AND b.assembly_serial = rw.assembly_serial
-                  JOIN credo.chains c
+                  JOIN credo_dev.chains c
                        ON c.biomolecule_id = b.biomolecule_id
                        AND c.pdb_chain_id = rw.pdb_chain_id
-                  JOIN credo.residues r
+                  JOIN credo_dev.residues r
                        ON c.chain_id = r.chain_id
                        AND r.res_num = rw.res_num
                        AND r.ins_code = rw.ins_code
                        AND r.res_name = rw.res_name
-                  JOIN credo.ligands l
+                  JOIN credo_dev.ligands l
                        ON l.biomolecule_id = b.biomolecule_id
                        AND l.entity_serial = rw.entity_serial
                  WHERE l.ligand_id = $1
@@ -284,22 +288,22 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
-                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.aromatic_rings)
+                             FROM credo_dev.biomolecules
+                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.aromatic_rings)
                          ORDER BY 1
         LOOP
             EXECUTE
             '
-              INSERT INTO credo.aromatic_rings(biomolecule_id, residue_id, ring_serial, centroid, size)
+              INSERT INTO credo_dev.aromatic_rings(biomolecule_id, residue_id, ring_serial, centroid, size)
               SELECT b.biomolecule_id, a.residue_id, ring_serial,
                      vector3d_scalar_division(SUM(coords), COUNT(rw.atom_serial)) as centroid,
                      COUNT(rw.atom_serial) as size
-                FROM credo.raw_aromatic_rings rw
-                JOIN credo.structures s on s.pdb = rw.pdb
-                JOIN credo.biomolecules b
+                FROM credo_dev.raw_aromatic_rings rw
+                JOIN credo_dev.structures s on s.pdb = rw.pdb
+                JOIN credo_dev.biomolecules b
                      ON b.structure_id = s.structure_id
                      AND rw.assembly_serial = b.assembly_serial
-                JOIN credo.atoms a
+                JOIN credo_dev.atoms a
                      ON a.biomolecule_id = b.biomolecule_id AND a.atom_serial = rw.atom_serial
                WHERE a.biomolecule_id = $1
             GROUP BY b.biomolecule_id, residue_id, ring_serial
@@ -312,30 +316,30 @@ END$$;
 
         -- UPDATE THE AROMATIC RING SERIAL NUMBER OF THE RESIDUE
         -- REQUIRED FOR RING-INTERACTIONS
-        UPDATE credo.aromatic_rings ar
+        UPDATE credo_dev.aromatic_rings ar
            SET ring_number = rs.ring_number
           FROM (
                SELECT ar.aromatic_ring_id, ar.residue_id, ar.biomolecule_id,
                       ROW_NUMBER() OVER (PARTITION BY residue_id ORDER BY residue_id) AS ring_number
-                 FROM credo.aromatic_rings ar
+                 FROM credo_dev.aromatic_rings ar
                ) rs
          WHERE ar.aromatic_ring_id = rs.aromatic_ring_id
                AND ar.ring_number IS NULL;
 
         -- UPDATE PATHS OF AROMATIC RINGS
-        UPDATE credo.aromatic_rings ar
+        UPDATE credo_dev.aromatic_rings ar
            SET path = r.path || ('AR' || ring_number)::ptree
-          FROM credo.residues r
+          FROM credo_dev.residues r
          WHERE r.residue_id = ar.residue_id;
 
 -- AROMATIC RING ATOMS
-  INSERT INTO credo.aromatic_ring_atoms(aromatic_ring_id, atom_id)
+  INSERT INTO credo_dev.aromatic_ring_atoms(aromatic_ring_id, atom_id)
   SELECT DISTINCT aromatic_ring_id, atom_id
-    FROM credo.aromatic_rings ar
-    JOIN credo.atoms a on a.residue_id = ar.residue_id
-    JOIN credo.biomolecules b ON b.biomolecule_id = a.biomolecule_id
-    JOIN credo.structures s on s.structure_id = b.structure_id
-    JOIN credo.raw_aromatic_rings rw
+    FROM credo_dev.aromatic_rings ar
+    JOIN credo_dev.atoms a on a.residue_id = ar.residue_id
+    JOIN credo_dev.biomolecules b ON b.biomolecule_id = a.biomolecule_id
+    JOIN credo_dev.structures s on s.structure_id = b.structure_id
+    JOIN credo_dev.raw_aromatic_rings rw
          ON rw.pdb = s.pdb
          AND rw.assembly_serial = b.assembly_serial
          AND rw.ring_serial = ar.ring_serial
@@ -344,13 +348,13 @@ ORDER BY aromatic_ring_id, atom_id;
 
         -- SET THE NORMAL FOR EACH AROMATIC RING
         -- REQUIRED TO CALCULATE RING INTERACTIONS
-        UPDATE credo.aromatic_rings ar
+        UPDATE credo_dev.aromatic_rings ar
            SET normal = rs.normal
           FROM (
                  SELECT ar.residue_id, ring_serial, three_point_normal(concat(coords)) as normal
-                   FROM credo.aromatic_rings ar
-                   JOIN credo.aromatic_ring_atoms ara ON ar.aromatic_ring_id = ara.aromatic_ring_id
-                   JOIN credo.atoms a ON a.atom_id = ara.atom_id
+                   FROM credo_dev.aromatic_rings ar
+                   JOIN credo_dev.aromatic_ring_atoms ara ON ar.aromatic_ring_id = ara.aromatic_ring_id
+                   JOIN credo_dev.atoms a ON a.atom_id = ara.atom_id
                   WHERE ar.normal IS NULL
                GROUP BY ar.residue_id, ring_serial
                ORDER BY ar.residue_id, ring_serial
@@ -368,15 +372,15 @@ ORDER BY aromatic_ring_id, atom_id;
 
 
 -- INSERT NEW HETATMS
-   INSERT INTO credo.hetatms(atom_id, ligand_component_id, ligand_id)
+   INSERT INTO credo_dev.hetatms(atom_id, ligand_component_id, ligand_id)
    SELECT a.atom_id, lc.ligand_component_id, lc.ligand_id
-     FROM credo.atoms a
-     JOIN credo.residues r ON r.residue_id = a.residue_id
-     JOIN credo.ligand_components lc ON lc.residue_id = r.residue_id
-    WHERE lc.ligand_id > (SELECT COALESCE(MAX(ligand_id),0) FROM credo.hetatms);
+     FROM credo_dev.atoms a
+     JOIN credo_dev.residues r ON r.residue_id = a.residue_id
+     JOIN credo_dev.ligand_components lc ON lc.residue_id = r.residue_id
+    WHERE lc.ligand_id > (SELECT COALESCE(MAX(ligand_id),0) FROM credo_dev.hetatms);
 
 -- CALCULATE RING INTERACTIONS
-  INSERT INTO credo.ring_interactions(biomolecule_id,
+  INSERT INTO credo_dev.ring_interactions(biomolecule_id,
                                       aromatic_ring_bgn_id, aromatic_ring_end_id,
                                       distance, dihedral, theta, iota)
   SELECT ar1.biomolecule_id,
@@ -385,7 +389,7 @@ ORDER BY aromatic_ring_id, atom_id;
          SIGNED_DEGREES(ar1.normal @ ar2.normal) AS dihedral,
          SIGNED_DEGREES(ar1.normal @ (ar1.centroid - ar2.centroid)) AS theta,
          SIGNED_DEGREES(ar2.normal @ (ar2.centroid - ar1.centroid)) AS iota
-    FROM credo.aromatic_rings ar1, credo.aromatic_rings ar2
+    FROM credo_dev.aromatic_rings ar1, credo_dev.aromatic_rings ar2
    WHERE ar1.aromatic_ring_id < ar2.aromatic_ring_id
          -- CONSIDER ALL PAIRS INSIDE THE SAME STRUCTURE
          AND ar1.biomolecule_id = ar2.biomolecule_id
@@ -394,7 +398,7 @@ ORDER BY aromatic_ring_id, atom_id;
          -- RINGS HAVE TO BE FROM DIFFERENT RESIDUES
          AND ar2.residue_id != ar1.residue_id
          --
-         AND ar1.biomolecule_id > (SELECT COALESCE(MAX(biomolecule_id),0) FROM credo.ring_interactions)
+         AND ar1.biomolecule_id > (SELECT COALESCE(MAX(biomolecule_id),0) FROM credo_dev.ring_interactions)
 ORDER BY 1,2;
 
 -- INSERT ATOM-AROMATIC RING INTERACTIONS
@@ -405,15 +409,15 @@ DO $$
         -- LOOP THROUGH ALL BIOMOLECULES THAT DO NOT HAVE ANY RING INTERACTIONS YET
         FOR biomol_id IN      SELECT biomolecule_id
                                 FROM (
-                                      SELECT biomolecule_id FROM credo.biomolecules
+                                      SELECT biomolecule_id FROM credo_dev.biomolecules
                                       EXCEPT
-                                      SELECT biomolecule_id FROM credo.atom_ring_interactions
+                                      SELECT biomolecule_id FROM credo_dev.atom_ring_interactions
                                      ) sq
                             ORDER BY 1
         LOOP
             EXECUTE
                 '
-                INSERT      INTO credo.atom_ring_interactions(biomolecule_id, aromatic_ring_id, atom_id, distance, theta, interaction_type)
+                INSERT      INTO credo_dev.atom_ring_interactions(biomolecule_id, aromatic_ring_id, atom_id, distance, theta, interaction_type)
                 SELECT      DISTINCT ar.biomolecule_id, ar.aromatic_ring_id, a.atom_id,
                             ar.centroid -> a.coords as distance,
                             SIGNED_DEGREES(ar.normal @ (ar.centroid - a.coords)) AS theta,
@@ -424,7 +428,7 @@ DO $$
                                 WHEN a.is_xbond_donor THEN ''HALOGENPI''
                                 ELSE NULL
                             END AS interaction_type
-                FROM        credo.aromatic_rings ar, credo.atoms a
+                FROM        credo_dev.aromatic_rings ar, credo_dev.atoms a
                 WHERE       ar.residue_id != a.residue_id
                             AND a.biomolecule_id = ar.biomolecule_id
                             AND a.is_aromatic = false
@@ -446,23 +450,23 @@ DO $$
     BEGIN
         -- LOOP THROUGH ALL CHAINS THAT ARE NOT IN THE PROTFRAGMENTS TABLE YET
         FOR cur_chain_id IN   SELECT chain_id
-                                FROM credo.chains
-                               WHERE chain_id > (SELECT COALESCE(max(chain_id),0) FROM credo.prot_fragments)
+                                FROM credo_dev.chains
+                               WHERE chain_id > (SELECT COALESCE(max(chain_id),0) FROM credo_dev.prot_fragments)
                             ORDER BY 1
         LOOP
             -- INSERT PROTEIN SECONDARY STRUCTURE FRAGMENTS
             EXECUTE
                 '
-                    INSERT INTO credo.prot_fragments(biomolecule_id, chain_id, path,
+                    INSERT INTO credo_dev.prot_fragments(biomolecule_id, chain_id, path,
                                                      sstruct_serial, sstruct,
                                                      fragment_size, fragment_seq)
                     SELECT DISTINCT
                            b.biomolecule_id, c.chain_id,
                            c.path || (f.sstruct || '':'' ||  f.sstruct_serial)::ptree,
                            f.sstruct_serial, f.sstruct, f.fragment_size, f.fragment_seq
-                     FROM credo.structures s
-                     JOIN credo.biomolecules b ON b.structure_id = s.structure_id
-                     JOIN credo.chains c on c.biomolecule_id = b.biomolecule_id
+                     FROM credo_dev.structures s
+                     JOIN credo_dev.biomolecules b ON b.structure_id = s.structure_id
+                     JOIN credo_dev.chains c on c.biomolecule_id = b.biomolecule_id
                      JOIN pdb.res_map m
                           ON m.pdb = s.pdb AND m.pdb_chain_id = c.pdb_chain_id
                      JOIN pdb.pdb_prot_fragments f
@@ -476,13 +480,13 @@ DO $$
             -- UPDATE THE MAPPING BETWEEN PROTEIN FRAGMENTS AND THEIR RESIDUES
             EXECUTE
                 '
-                   INSERT INTO credo.prot_fragment_residues
+                   INSERT INTO credo_dev.prot_fragment_residues
                    SELECT DISTINCT pf.prot_fragment_id, p.residue_id
-                     FROM credo.prot_fragments pf
-                     JOIN credo.chains c ON c.chain_id = pf.chain_id
-                     JOIN credo.biomolecules b ON c.biomolecule_id = b.biomolecule_id
-                     JOIN credo.structures s ON s.structure_id = b.structure_id
-                     JOIN credo.peptides p ON p.chain_id = c.chain_id
+                     FROM credo_dev.prot_fragments pf
+                     JOIN credo_dev.chains c ON c.chain_id = pf.chain_id
+                     JOIN credo_dev.biomolecules b ON c.biomolecule_id = b.biomolecule_id
+                     JOIN credo_dev.structures s ON s.structure_id = b.structure_id
+                     JOIN credo_dev.peptides p ON p.chain_id = c.chain_id
                      JOIN pdb.res_map m
                           ON m.pdb = s.pdb
                           AND m.pdb_chain_id = c.pdb_chain_asu_id
@@ -498,11 +502,11 @@ DO $$
 END$$;
 
 -- UPDATE PROTEIN-FRAGMENT COMPLETENESS
-UPDATE credo.prot_fragments pf
+UPDATE credo_dev.prot_fragments pf
    SET completeness = rs.residues / pf.fragment_size::real
   FROM (
           SELECT pfr.prot_fragment_id, count(residue_id) as residues
-            FROM credo.prot_fragment_residues pfr
+            FROM credo_dev.prot_fragment_residues pfr
         GROUP BY pfr.prot_fragment_id
        ) rs
  WHERE rs.prot_fragment_id = pf.prot_fragment_id;
@@ -516,20 +520,20 @@ DO $$
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES
         FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo.biomolecules
-                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo.residue_interaction_pairs)
+                             FROM credo_dev.biomolecules
+                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.residue_interaction_pairs)
                          ORDER BY 1
         LOOP
             -- INSERT CONTACTS
             EXECUTE
                 '
-                  INSERT INTO credo.residue_interaction_pairs
+                  INSERT INTO credo_dev.residue_interaction_pairs
                   SELECT DISTINCT cs.biomolecule_id, abgn.residue_id, aend.residue_id,
                          cs.structural_interaction_type_bm
-                    FROM credo.contacts cs
-                    JOIN credo.atoms abgn
+                    FROM credo_dev.contacts cs
+                    JOIN credo_dev.atoms abgn
                          ON abgn.atom_id = cs.atom_bgn_id AND cs.biomolecule_id = abgn.biomolecule_id
-                    JOIN credo.atoms aend
+                    JOIN credo_dev.atoms aend
                          ON aend.atom_id = cs.atom_end_id AND cs.biomolecule_id = aend.biomolecule_id
                    WHERE cs.biomolecule_id = $1
                 ORDER BY 1,2
@@ -540,16 +544,16 @@ DO $$
 END$$;
 
 -- BINDING SITE RESIDUES
-  INSERT INTO credo.binding_site_residues
+  INSERT INTO credo_dev.binding_site_residues
   SELECT DISTINCT lc.ligand_id, rp.residue_end_id, entity_type_bm
-    FROM credo.residue_interaction_pairs rp
-    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_bgn_id
-    JOIN credo.residues r ON r.residue_id = rp.residue_end_id
+    FROM credo_dev.residue_interaction_pairs rp
+    JOIN credo_dev.ligand_components lc ON lc.residue_id = rp.residue_bgn_id
+    JOIN credo_dev.residues r ON r.residue_id = rp.residue_end_id
    UNION
   SELECT DISTINCT lc.ligand_id, rp.residue_bgn_id, entity_type_bm
-    FROM credo.residue_interaction_pairs rp
-    JOIN credo.ligand_components lc ON lc.residue_id = rp.residue_end_id
-    JOIN credo.residues r ON r.residue_id = rp.residue_bgn_id
+    FROM credo_dev.residue_interaction_pairs rp
+    JOIN credo_dev.ligand_components lc ON lc.residue_id = rp.residue_end_id
+    JOIN credo_dev.residues r ON r.residue_id = rp.residue_bgn_id
 ORDER BY 1,2,3;
 
 
@@ -562,17 +566,17 @@ ORDER BY 1,2,3;
 
 
 -- UPDATE NUMBER OF BIOMOLECULES PER STRUCTURE
-UPDATE      credo.structures s
+UPDATE      credo_dev.structures s
 SET         num_biomolecules = sq.biomolecules
 FROM        (
             SELECT      structure_id, COUNT(biomolecule_id) as biomolecules
-            FROM        credo.biomolecules b
+            FROM        credo_dev.biomolecules b
             GROUP BY    structure_id
             ) sq
 WHERE       s.structure_id = sq.structure_id;
 
 -- UPDATE BIOMOLECULE ASSEMBLY TYPE
-UPDATE      credo.biomolecules b
+UPDATE      credo_dev.biomolecules b
 SET         assembly_type = rs.assembly_type
 FROM        (
             SELECT  sq.biomolecule_id,
@@ -602,19 +606,19 @@ FROM        (
             FROM    (
                     SELECT      biomolecule_id,
                                 COUNT(DISTINCT chain_id) as num_chains
-                    FROM        credo.chains c
+                    FROM        credo_dev.chains c
                     GROUP BY    biomolecule_id
                     ) sq
             ) rs
 WHERE       b.biomolecule_id = rs.biomolecule_id;
 
 -- UPDATE THE NUMBER OF LIGANDS FOR EACH BIOMOLECULE
-UPDATE      credo.biomolecules b
+UPDATE      credo_dev.biomolecules b
 SET         num_ligands = rs.num_ligands
 FROM        (
             SELECT      biomolecule_id,
                         COUNT(DISTINCT ligand_id) as num_ligands
-            FROM        credo.ligands l
+            FROM        credo_dev.ligands l
             GROUP BY    biomolecule_id
             ) rs
 WHERE       b.biomolecule_id = rs.biomolecule_id;
@@ -637,7 +641,7 @@ WHERE       b.biomolecule_id = rs.biomolecule_id;
  * SAC - LIG 2
  * LIG - LIG 1
  */
-  UPDATE credo.biomolecules b
+  UPDATE credo_dev.biomolecules b
      SET structural_interaction_bm = sq.structural_interaction_bm
     FROM (
           SELECT biomolecule_id,
@@ -706,37 +710,37 @@ WHERE       b.biomolecule_id = rs.biomolecule_id;
                          ELSE 0
                      END
                  ) AS structural_interaction_bm
-            FROM credo.residue_interaction_pairs rip
+            FROM credo_dev.residue_interaction_pairs rip
         GROUP BY biomolecule_id
        ) sq
  WHERE sq.biomolecule_id = b.biomolecule_id;
 
 -- UPDATE THE NUMBER OF CHAINS AND ATOMS FOR EACH BIOMOLECULE
-UPDATE      credo.biomolecules b
+UPDATE      credo_dev.biomolecules b
 SET         num_chains = rs.num_chains, num_atoms = rs.num_atoms
 FROM        (
             SELECT      r.biomolecule_id,
                         COUNT(DISTINCT chain_id) as num_chains,
                         COUNT(DISTINCT atom_id) as num_atoms
-            FROM        credo.residues r
-            JOIN        credo.atoms a ON a.residue_id = r.residue_id
+            FROM        credo_dev.residues r
+            JOIN        credo_dev.atoms a ON a.residue_id = r.residue_id
             WHERE       a.biomolecule_id = r.biomolecule_id
             GROUP BY    r.biomolecule_id
             ) rs
 WHERE       b.biomolecule_id = rs.biomolecule_id;
 
 -- SET A FLAG FOR CHAINS THAT HAVE DISORDERED REGIONS
-UPDATE credo.chains c
+UPDATE credo_dev.chains c
    SET has_disordered_regions = true
-  FROM credo.biomolecules b, credo.structures s, pdb.disordered_regions dr
+  FROM credo_dev.biomolecules b, credo_dev.structures s, pdb.disordered_regions dr
  WHERE c.biomolecule_id = b.biomolecule_id
        AND b.structure_id = s.structure_id
        AND dr.pdb = s.pdb AND dr.pdb_chain_id = c.pdb_chain_asu_id;
 
 -- SET A FLAG FOR DISORDERED RESIDUES
-UPDATE      credo.residues r
+UPDATE      credo_dev.residues r
 SET         is_disordered = TRUE
-FROM        credo.atoms a
+FROM        credo_dev.atoms a
 WHERE       a.residue_id = r.residue_id AND a.alt_loc != ' ' AND a.biomolecule_id = r.biomolecule_id;
 
 -- UPDATE INCOMPLETE RESIDUES
@@ -745,17 +749,17 @@ DO $$
         chn_id INTEGER;
         biomol_id INTEGER;
     BEGIN
-        FOR chn_id, biomol_id IN  SELECT chain_id, biomolecule_id FROM credo.chains ORDER BY 1
+        FOR chn_id, biomol_id IN  SELECT chain_id, biomolecule_id FROM credo_dev.chains ORDER BY 1
         LOOP
 
             EXECUTE
             '
-            UPDATE ONLY credo.residues r
+            UPDATE ONLY credo_dev.residues r
                SET is_incomplete = true
               FROM (
                       SELECT r.residue_id
-                        FROM ONLY credo.residues r
-                        JOIN credo.atoms a ON a.residue_id = r.residue_id
+                        FROM ONLY credo_dev.residues r
+                        JOIN credo_dev.atoms a ON a.residue_id = r.residue_id
                         JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
                        WHERE r.chain_id = $1 AND a.biomolecule_id = $2
                              AND a.alt_loc = '' ''
@@ -767,12 +771,12 @@ DO $$
 
             EXECUTE
             '
-            UPDATE ONLY credo.peptides r
+            UPDATE ONLY credo_dev.peptides r
                SET is_incomplete = true
               FROM (
                       SELECT r.residue_id
-                        FROM ONLY credo.peptides r
-                        JOIN credo.atoms a ON a.residue_id = r.residue_id
+                        FROM ONLY credo_dev.peptides r
+                        JOIN credo_dev.atoms a ON a.residue_id = r.residue_id
                         JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
                        WHERE r.chain_id = $1 AND a.biomolecule_id = $2
                              AND a.alt_loc = '' ''
@@ -786,12 +790,12 @@ DO $$
 
             EXECUTE
             '
-            UPDATE ONLY credo.nucleotides r
+            UPDATE ONLY credo_dev.nucleotides r
                SET is_incomplete = true
               FROM (
                       SELECT r.residue_id
-                        FROM ONLY credo.nucleotides r
-                        JOIN credo.atoms a ON a.residue_id = r.residue_id
+                        FROM ONLY credo_dev.nucleotides r
+                        JOIN credo_dev.atoms a ON a.residue_id = r.residue_id
                         JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
                        WHERE r.chain_id = $1 AND a.biomolecule_id = $2
                              AND a.alt_loc = '' ''
@@ -803,12 +807,12 @@ DO $$
 
             EXECUTE
             '
-            UPDATE ONLY credo.saccharides r
+            UPDATE ONLY credo_dev.saccharides r
                SET is_incomplete = true
               FROM (
                       SELECT r.residue_id
-                        FROM ONLY credo.saccharides r
-                        JOIN credo.atoms a ON a.residue_id = r.residue_id
+                        FROM ONLY credo_dev.saccharides r
+                        JOIN credo_dev.atoms a ON a.residue_id = r.residue_id
                         JOIN pdbchem.chem_comps cc ON r.res_name = cc.het_id
                        WHERE r.chain_id = $1 AND a.biomolecule_id = $2
                              AND a.alt_loc = '' ''
@@ -823,23 +827,23 @@ DO $$
 END$$;
 
 -- UPDATE INCOMPLETE LIGANDS
-UPDATE credo.ligands l
+UPDATE credo_dev.ligands l
    SET is_incomplete = true
-  FROM credo.ligand_components lc
-  JOIN credo.residues r USING(residue_id)
+  FROM credo_dev.ligand_components lc
+  JOIN credo_dev.residues r USING(residue_id)
  WHERE l.ligand_id = lc.ligand_id AND r.is_incomplete = true;
 
 -- SET A FLAG FOR DISORDERED LIGANDS
-UPDATE      credo.ligands l
+UPDATE      credo_dev.ligands l
 SET         is_disordered = true
-FROM        credo.hetatms h, credo.atoms a
+FROM        credo_dev.hetatms h, credo_dev.atoms a
 WHERE       l.ligand_id = h.ligand_id AND h.atom_id = a.atom_id
             AND a.alt_loc != ' ';
 
 -- SET A FLAG IF THE LIGAND IS FROM ASU OR NOT
-UPDATE      credo.ligands l
+UPDATE      credo_dev.ligands l
 SET         is_at_identity = true
-FROM        credo.biomolecules b, credo.chains c
+FROM        credo_dev.biomolecules b, credo_dev.chains c
 WHERE       l.biomolecule_id = b.biomolecule_id
             AND b.biomolecule_id = c.biomolecule_id
             AND l.pdb_chain_id = c.pdb_chain_id
@@ -850,14 +854,14 @@ DO $$
     DECLARE
         biomol_id INTEGER;
     BEGIN
-        FOR biomol_id IN  SELECT DISTINCT biomolecule_id FROM credo.ligands ORDER BY 1
+        FOR biomol_id IN  SELECT DISTINCT biomolecule_id FROM credo_dev.ligands ORDER BY 1
         LOOP
 
             EXECUTE
             '
-            UPDATE credo.ligands l
+            UPDATE credo_dev.ligands l
                SET is_clashing = true
-              FROM credo.hetatms h, credo.contacts cs
+              FROM credo_dev.hetatms h, credo_dev.contacts cs
              WHERE h.ligand_id = l.ligand_id
                    AND h.atom_id = cs.atom_bgn_id
                    AND cs.is_clash = true
@@ -867,9 +871,9 @@ DO $$
 
             EXECUTE
             '
-            UPDATE credo.ligands l
+            UPDATE credo_dev.ligands l
                SET is_clashing = true
-              FROM credo.hetatms h, credo.contacts cs
+              FROM credo_dev.hetatms h, credo_dev.contacts cs
              WHERE h.ligand_id = l.ligand_id
                    AND h.atom_id = cs.atom_end_id
                    AND cs.is_clash = true
@@ -882,33 +886,33 @@ DO $$
 END$$;
 
 -- UPDATE N- AND C-TERMINUS INFORMATION OF PROTEIN-FRAGMENTS
-UPDATE      credo.prot_fragments pf
+UPDATE      credo_dev.prot_fragments pf
 SET         prot_fragment_nterm_id = sq.prot_fragment_nterm_id,
             prot_fragment_cterm_id = sq.prot_fragment_cterm_id
 FROM        (
             SELECT  prot_fragment_id,
                     LAG(prot_fragment_id) OVER (PARTITION BY chain_id ORDER BY chain_id) AS prot_fragment_nterm_id,
                     LEAD(prot_fragment_id) OVER (PARTITION BY chain_id ORDER BY chain_id) AS prot_fragment_cterm_id
-            FROM    credo.prot_fragments pf
+            FROM    credo_dev.prot_fragments pf
             WHERE   prot_fragment_nterm_id IS NULL AND prot_fragment_cterm_id IS NULL
             ) sq
 WHERE       pf.prot_fragment_id = sq.prot_fragment_id;
 
 -- UPDATE HETEROAROMATIC FLAG
-UPDATE      credo.aromatic_rings ar
+UPDATE      credo_dev.aromatic_rings ar
 SET         is_hetero_aromatic = true
 FROM        (
             SELECT      DISTINCT ar.aromatic_ring_id
-            FROM        credo.aromatic_rings ar
-            JOIN        credo.aromatic_ring_atoms ara
+            FROM        credo_dev.aromatic_rings ar
+            JOIN        credo_dev.aromatic_ring_atoms ara
                         ON ar.aromatic_ring_id = ara.aromatic_ring_id
-            JOIN        credo.atoms a ON a.atom_id = ara.atom_id
+            JOIN        credo_dev.atoms a ON a.atom_id = ara.atom_id
             WHERE       a.element != 'C'
             ) rs
 WHERE       rs.aromatic_ring_id = ar.aromatic_ring_id;
 
 -- SET THE RING INTERACTION TYPE FOR ALL RING INTERACTIONS
-UPDATE      credo.ring_interactions ri
+UPDATE      credo_dev.ring_interactions ri
 SET         interaction_type = rs1.interaction_type
 FROM        (
             SELECT      ring_interaction_id,
@@ -927,14 +931,14 @@ FROM        (
                         END as interaction_type
             FROM        (
                         SELECT  ring_interaction_id, ABS(dihedral) as dihedral, ABS(theta) as theta
-                        FROM    credo.ring_interactions
+                        FROM    credo_dev.ring_interactions
 			WHERE interaction_type IS NULL
                         ) rs2
             ) rs1
 WHERE       ri.ring_interaction_id = rs1.ring_interaction_id;
 
 -- CLOSEST ATOM DETAILS FOR RING INTERACTIONS
-UPDATE      credo.ring_interactions ri
+UPDATE      credo_dev.ring_interactions ri
 SET         closest_atom_bgn_id = sq.atom_bgn_id, closest_atom_End_id = sq.atom_end_id, closest_atom_distance = sq.closest_atom_distance
 FROM        (
             WITH sq AS
@@ -943,11 +947,11 @@ FROM        (
                         a1.coords -> a2.coords as closest_atom_distance,
                         ROW_NUMBER() OVER(PARTITION BY ri.ring_interaction_id
                                         ORDER BY ri.ring_interaction_id, a1.coords -> a2.coords) AS rank
-                FROM    credo.ring_interactions ri
-                JOIN    credo.aromatic_ring_atoms ara1 ON ara1.aromatic_ring_id = ri.aromatic_ring_bgn_id
-                JOIN    credo.aromatic_ring_atoms ara2 ON ara2.aromatic_ring_id = ri.aromatic_ring_end_id
-                JOIN    credo.atoms a1 ON a1.atom_id = ara1.atom_id
-                JOIN    credo.atoms a2 ON a2.atom_id = ara2.atom_id
+                FROM    credo_dev.ring_interactions ri
+                JOIN    credo_dev.aromatic_ring_atoms ara1 ON ara1.aromatic_ring_id = ri.aromatic_ring_bgn_id
+                JOIN    credo_dev.aromatic_ring_atoms ara2 ON ara2.aromatic_ring_id = ri.aromatic_ring_end_id
+                JOIN    credo_dev.atoms a1 ON a1.atom_id = ara1.atom_id
+                JOIN    credo_dev.atoms a2 ON a2.atom_id = ara2.atom_id
 		WHERE   closest_atom_bgn_id IS NULL AND closest_atom_end_id IS NULL
             )
             SELECT  sq.ring_interaction_id, sq.atom_bgn_id, sq.atom_end_id, sq.closest_atom_distance
@@ -962,7 +966,7 @@ for each ligand with at least 5 heavy atoms.
 */
 DO $$
     # GET ALL LIGAND IDS
-    result = plpy.execute("SELECT biomolecule_id, ligand_id FROM credo.ligands WHERE num_hvy_atoms >= 5 ORDER BY 1")
+    result = plpy.execute("SELECT biomolecule_id, ligand_id FROM credo_dev.ligands WHERE num_hvy_atoms >= 5 ORDER BY 1")
 
     for biomolecule_id, ligand_id in [(row['biomolecule_id'], row['ligand_id']) for row in result]:
 
@@ -971,7 +975,7 @@ DO $$
                          WITH hetatms AS
                               (
                                SELECT h.hetatm_id
-                                 FROM credo.hetatms h
+                                 FROM credo_dev.hetatms h
                                 WHERE h.ligand_id = $1
                               ),
                               contacts AS
@@ -979,9 +983,9 @@ DO $$
                                 SELECT  ligand_id, hetatm_id, array_length(array_agg(sq.atoms),1) as num_atoms
                                 FROM    (
                                         SELECT  h.ligand_id, h.hetatm_id, cs.atom_end_id as atoms
-                                        FROM    credo.contacts cs
-                                        JOIN    credo.hetatms h ON cs.atom_bgn_id = h.atom_id
-                                        JOIN    credo.ligands l ON l.ligand_id = h.ligand_id
+                                        FROM    credo_dev.contacts cs
+                                        JOIN    credo_dev.hetatms h ON cs.atom_bgn_id = h.atom_id
+                                        JOIN    credo_dev.ligands l ON l.ligand_id = h.ligand_id
                                         WHERE   h.ligand_id = $1
                                                 AND cs.biomolecule_id = $2
                                                 AND l.biomolecule_id = cs.biomolecule_id
@@ -991,9 +995,9 @@ DO $$
                                                 AND cs.structural_interaction_type_bm & 56 > 0
                                         UNION
                                         SELECT  h.ligand_id, h.hetatm_id, cs.atom_bgn_id as atoms
-                                        FROM    credo.contacts cs
-                                        JOIN    credo.hetatms h ON cs.atom_end_id = h.atom_id
-                                        JOIN    credo.ligands l ON l.ligand_id = h.ligand_id
+                                        FROM    credo_dev.contacts cs
+                                        JOIN    credo_dev.hetatms h ON cs.atom_end_id = h.atom_id
+                                        JOIN    credo_dev.ligands l ON l.ligand_id = h.ligand_id
                                         WHERE   h.ligand_id = $1
                                                 AND cs.biomolecule_id = $2
                                                 AND l.biomolecule_id = cs.biomolecule_id
@@ -1013,7 +1017,7 @@ DO $$
 
         # PREPARE STATEMENT FOR EXECUTION
         query = plpy.prepare(statement, ['integer','integer'])
-        update = plpy.prepare("UPDATE credo.ligands SET gini_index_contacts = $2 WHERE ligand_id = $1", ['integer','float'])
+        update = plpy.prepare("UPDATE credo_dev.ligands SET gini_index_contacts = $2 WHERE ligand_id = $1", ['integer','float'])
 
         # FETCH THE CONTACTS
         result = plpy.execute(query, [ligand_id, biomolecule_id])

@@ -11,7 +11,7 @@ class CredoController(controller.CementBaseController):
         description = fill("Calculate the core CREDO interaction data for biological "
                            "complexes. Prepare PDB files for use with the CREDO database.", 80)
         stacked_on = None
-        config_defaults = dict(testset = 'small', progressbar=False)
+        config_defaults = dict(testset='small', progressbar=False)
 
         arguments = [
             (['-A', '--all'],
@@ -104,7 +104,7 @@ class CredoStandAloneController(controller.CementBaseController):
         label = 'credosa'
         description = """Calculate the core CREDO interaction data for biological complexes. Prepare PDB files for use with the CREDO database. Stand-alone version."""
         stacked_on = None
-        config_defaults = dict(format='tsv')
+        config_defaults = dict(fmt='tsv')
 
         arguments = [
             (['-S', '--structures'],
@@ -116,8 +116,8 @@ class CredoStandAloneController(controller.CementBaseController):
             (['-C', '--contacts'],
                 dict(action='store_true',
                      help='Write contacts to a file.')),
-            (['-F', '--format'],
-                dict(action='store', metavar='FORMAT',
+            (['-F', '--fmt'],
+                dict(action='store', metavar='FORMAT', default='tsv',
                      help="File format in which contacts will be saved in, either 'csv', 'tsv' or 'xls'. Defaults to 'tsv'.")),
             (['-O', '--output-dir'],
                 dict(action='store',

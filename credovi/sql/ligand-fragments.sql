@@ -6,7 +6,7 @@ DO $$
     BEGIN
         -- LOOP THROUGH ALL LIGANDS THAT DO NOT HAVE CLASHES AND ARE NOT DISORDERED
         FOR lig_id, biomol_id IN   SELECT ligand_id, biomolecule_id
-                                     FROM credo.ligands
+                                     FROM credo_dev.ligands
                                     WHERE is_disordered = false
                                           -- no peptide ligands
                                           AND res_num IS NOT NULL
@@ -16,26 +16,26 @@ DO $$
             '
             WITH ligand_fragments AS
                  (
-                     INSERT INTO credo.ligand_fragments(biomolecule_id, ligand_id, ligand_component_id, fragment_id, hit)
+                     INSERT INTO credo_dev.ligand_fragments(biomolecule_id, ligand_id, ligand_component_id, fragment_id, hit)
                      SELECT DISTINCT r.biomolecule_id, lc.ligand_id, lc.ligand_component_id, fragment_id, hit
-                       FROM credo.ligands l
-                       JOIN credo.ligand_components lc ON l.ligand_id = lc.ligand_id
-                       JOIN credo.residues r ON r.residue_id = lc.residue_id
+                       FROM credo_dev.ligands l
+                       JOIN credo_dev.ligand_components lc ON l.ligand_id = lc.ligand_id
+                       JOIN credo_dev.residues r ON r.residue_id = lc.residue_id
                        JOIN pdbchem.chem_comp_fragments cf ON r.res_name = cf.het_id
                        JOIN pdbchem.chem_comp_fragment_atoms cfa ON cfa.chem_comp_fragment_id = cf.chem_comp_fragment_id
                       WHERE lc.ligand_id = $1
                    ORDER BY 1,2,3
-                  RETURNING credo.ligand_fragments.*
+                  RETURNING credo_dev.ligand_fragments.*
                  ),
                  ligand_fragment_atoms AS
                  (
-                     INSERT INTO credo.ligand_fragment_atoms(ligand_id, ligand_fragment_id, atom_id)
+                     INSERT INTO credo_dev.ligand_fragment_atoms(ligand_id, ligand_fragment_id, atom_id)
                      SELECT DISTINCT lf.ligand_id, lf.ligand_fragment_id, a.atom_id
                        FROM ligand_fragments lf
                             -- get the ligand component atoms
-                       JOIN credo.ligand_components lc ON lc.ligand_component_id = lf.ligand_component_id
-                       JOIN credo.residues r ON r.residue_id = lc.residue_id
-                       JOIN credo.atoms a on a.residue_id = lc.residue_id
+                       JOIN credo_dev.ligand_components lc ON lc.ligand_component_id = lf.ligand_component_id
+                       JOIN credo_dev.residues r ON r.residue_id = lc.residue_id
+                       JOIN credo_dev.atoms a on a.residue_id = lc.residue_id
                             -- link them to the fragment atoms
                        JOIN pdbchem.chem_comp_fragments cf
                             ON cf.het_id = r.res_name AND cf.fragment_id = lf.fragment_id
@@ -45,7 +45,7 @@ DO $$
                             AND cfa.pdb_name = a.atom_name
                       WHERE lc.ligand_id = lf.ligand_id AND a.biomolecule_id = $2
                    ORDER BY 1,2
-                  RETURNING credo.ligand_fragment_atoms.*
+                  RETURNING credo_dev.ligand_fragment_atoms.*
                  )
                  SELECT NULL;
             ' USING lig_id, biomol_id;
@@ -55,53 +55,53 @@ END$$;
 
 
 --CREATE INDEX idx_ligand_fragments_biomolecule_id
---  ON credo.ligand_fragments
+--  ON credo_dev.ligand_fragments
 --  USING btree
 --  (biomolecule_id)
 --  WITH (FILLFACTOR=100);
 
 --CREATE INDEX idx_ligand_fragments_fragment_id
---  ON credo.ligand_fragments
+--  ON credo_dev.ligand_fragments
 --  USING btree
 --  (fragment_id, hit)
 --  WITH (FILLFACTOR=100);
 
 --CREATE INDEX idx_ligand_fragments_ligand_component_id
---  ON credo.ligand_fragments
+--  ON credo_dev.ligand_fragments
 --  USING btree
 --  (ligand_component_id)
 --  WITH (FILLFACTOR=100);
 
 --CREATE INDEX idx_ligand_fragments_ligand_id
---  ON credo.ligand_fragments
+--  ON credo_dev.ligand_fragments
 --  USING btree
 --  (ligand_id)
 --  WITH (FILLFACTOR=100);
 
 --CREATE INDEX idx_ligand_fragment_atoms_atom_id
---  ON credo.ligand_fragment_atoms
+--  ON credo_dev.ligand_fragment_atoms
 --  USING btree
 --  (atom_id)
 --  WITH (FILLFACTOR=100);
 
 --CREATE UNIQUE INDEX idx_ligand_fragment_atoms_ligand_fragment_id
---  ON credo.ligand_fragment_atoms
+--  ON credo_dev.ligand_fragment_atoms
 --  USING btree
 --  (ligand_fragment_id, atom_id)
 --  WITH (FILLFACTOR=100);
 --
 
 --CREATE INDEX idx_ligand_fragment_atoms_ligand_id
---  ON credo.ligand_fragment_atoms
+--  ON credo_dev.ligand_fragment_atoms
 --  USING btree
 --  (ligand_id)
 --  WITH (FILLFACTOR=100);
 
 
 -- SET A FLAG OF ROOT LIGAND FRAGMENTS
-UPDATE credo.ligand_fragments lf
+UPDATE credo_dev.ligand_fragments lf
    SET is_root = true
-  FROM credo.ligand_components lc,
+  FROM credo_dev.ligand_components lc,
        pdbchem.fragment_hierarchies fh
  WHERE lc.ligand_component_id = lf.ligand_component_id
        AND fh.parent_id = lf.fragment_id
@@ -115,8 +115,8 @@ DO $$
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES
         FOR lig_frag_id, biomol_id IN   SELECT lf.ligand_fragment_id, lf.biomolecule_id
-                                          FROM credo.ligand_fragments lf
-                                          JOIN credo.ligands USING(ligand_id)
+                                          FROM credo_dev.ligand_fragments lf
+                                          JOIN credo_dev.ligands USING(ligand_id)
                                       ORDER BY 1
         LOOP
             EXECUTE
@@ -140,9 +140,9 @@ DO $$
                              FROM (
                                       SELECT lfa.ligand_fragment_id,
                                              cs.atom_bgn_id as atom_fragment_id, cs.atom_end_id as atom_id, cs.*
-                                        FROM credo.ligand_fragment_atoms lfa
+                                        FROM credo_dev.ligand_fragment_atoms lfa
                                              -- FRAGMENT ATOM IS BGN
-                                        JOIN credo.contacts cs ON cs.atom_bgn_id = lfa.atom_id
+                                        JOIN credo_dev.contacts cs ON cs.atom_bgn_id = lfa.atom_id
                                        WHERE lfa.ligand_fragment_id = $1
                                              AND cs.biomolecule_id = $2
                                              AND cs.is_same_entity = false
@@ -152,9 +152,9 @@ DO $$
                                    UNION ALL
                                       SELECT lfa.ligand_fragment_id,
                                              cs.atom_end_id as atom_fragment_id, cs.atom_bgn_id as atom_id, cs.*
-                                        FROM credo.ligand_fragment_atoms lfa
+                                        FROM credo_dev.ligand_fragment_atoms lfa
                                              -- FRAGMENT ATOM IS END
-                                        JOIN credo.contacts cs ON cs.atom_end_id = lfa.atom_id
+                                        JOIN credo_dev.contacts cs ON cs.atom_end_id = lfa.atom_id
                                        WHERE lfa.ligand_fragment_id = $1
                                              AND cs.biomolecule_id = $2
                                              AND cs.is_same_entity = false
@@ -165,7 +165,7 @@ DO $$
                          GROUP BY fc.ligand_fragment_id
                          ORDER BY fc.ligand_fragment_id
                         )
-                 UPDATE credo.ligand_fragments lf
+                 UPDATE credo_dev.ligand_fragments lf
                     SET num_int_atoms = fc.num_int_atoms,
                         num_contacts = fc.num_covalent + fc.num_vdw_clash + fc.num_vdw + fc.num_proximal,
                         num_covalent = fc.num_covalent,
@@ -188,7 +188,7 @@ DO $$
         END LOOP;
 END$$;
 
-UPDATE credo.ligand_fragments u
+UPDATE credo_dev.ligand_fragments u
    SET fcd = sq.fcd, fad = sq.fad
   FROM (
         -- get the number of ligand heavy atoms and interacting atoms from the root fragments
@@ -198,16 +198,17 @@ UPDATE credo.ligand_fragments u
                 num_hvy_atoms, num_int_atoms, num_contacts,
                 num_int_atoms / num_hvy_atoms::numeric AS int_ratio,
                 num_contacts / num_hvy_atoms::numeric AS cs_ratio
-           FROM credo.ligand_fragments lf
-           JOIN credo.ligands l USING(ligand_id)
-          WHERE lf.is_root = true
+           FROM credo_dev.ligand_fragments lf
+           JOIN credo_dev.ligands l USING(ligand_id)
+          WHERE lf.is_root = true and l.num_hvy_atoms > 0
         )
         SELECT lf.ligand_fragment_id,
                (lf.num_int_atoms / f.num_hvy_atoms::numeric) / l.int_ratio as fad,
                (lf.num_contacts / f.num_hvy_atoms::numeric) / l.cs_ratio as fcd
-          FROM credo.ligand_fragments lf
+          FROM credo_dev.ligand_fragments lf
           JOIN ligands l ON l.ligand_id = lf.ligand_id
           JOIN pdbchem.fragments f ON f.fragment_id = lf.fragment_id
+          WHERE f.num_hvy_atoms > 0 and l.int_ratio > 0 and l.cs_ratio > 0
        ) sq
  WHERE u.ligand_fragment_id = sq.ligand_fragment_id;
 
@@ -217,12 +218,12 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         FOR lig_id, biomol_id IN   SELECT DISTINCT ligand_id, biomolecule_id
-                                     FROM credo.ligand_fragments
+                                     FROM credo_dev.ligand_fragments
                                  ORDER BY 1
         LOOP
             EXECUTE
             '
-            UPDATE credo.ligand_fragments lf
+            UPDATE credo_dev.ligand_fragments lf
                SET npr1 = (sq.nprs).npr1, npr2 = (sq.nprs).npr2
               FROM (
                       WITH sq AS
@@ -231,8 +232,8 @@ DO $$
                                       array_cat(a.coords) AS coords,
                                       array_agg(a.element) AS elements,
                                       count(a.atom_id) AS num_atoms
-                                 FROM credo.ligand_fragment_atoms lfa
-                                 JOIN credo.atoms a ON a.atom_id = lfa.atom_id
+                                 FROM credo_dev.ligand_fragment_atoms lfa
+                                 JOIN credo_dev.atoms a ON a.atom_id = lfa.atom_id
                                 WHERE ligand_id = $1 AND a.biomolecule_id = $2
                              GROUP BY lfa.ligand_fragment_id
                            )
@@ -252,7 +253,7 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         FOR lig_id, biomol_id IN   SELECT DISTINCT ligand_id, biomolecule_id
-                                     FROM credo.ligand_fragments
+                                     FROM credo_dev.ligand_fragments
                                  ORDER BY 1
         LOOP
             EXECUTE
@@ -267,9 +268,9 @@ DO $$
                                         OR a.element = ''S''
                                    THEN true ELSE false
                               END AS is_polar
-                         FROM credo.binding_site_atom_surface_areas bsa
-                         JOIN credo.ligand_fragment_atoms lfa USING(ligand_id, atom_id)
-                         JOIN credo.atoms a USING(atom_id)
+                         FROM credo_dev.binding_site_atom_surface_areas bsa
+                         JOIN credo_dev.ligand_fragment_atoms lfa USING(ligand_id, atom_id)
+                         JOIN credo_dev.atoms a USING(atom_id)
                         WHERE ligand_id = $1 AND a.biomolecule_id = $2
                       ),
                       asa AS
@@ -315,7 +316,7 @@ DO $$
                           WHERE is_polar = true
                        GROUP BY ligand_fragment_id
                       )
-               UPDATE credo.ligand_fragments lf
+               UPDATE credo_dev.ligand_fragments lf
                   SET asa_buriedness = sq.asa_buriedness,
                       aasa_buriedness = sq.aasa_buriedness,
                       pasa_buriedness = sq.pasa_buriedness
@@ -332,17 +333,17 @@ DO $$
         END LOOP;
 END$$;
 
-UPDATE credo.ligand_fragments lf
+UPDATE credo_dev.ligand_fragments lf
    SET rel_asa_buriedness = sq.rel_asa_buriedness
   FROM (
           with roots AS
                (
                 SELECT ligand_id, asa_buriedness
-                  FROM credo.ligand_fragments lf
+                  FROM credo_dev.ligand_fragments lf
                  WHERE is_root = true AND asa_buriedness > 0
                )
         SELECT ligand_fragment_id, lf.asa_buriedness / r.asa_buriedness as rel_asa_buriedness
-          FROM credo.ligand_fragments lf
+          FROM credo_dev.ligand_fragments lf
           JOIN roots r ON r.ligand_id = lf.ligand_id
        ) sq
  WHERE lf.ligand_fragment_id = sq.ligand_fragment_id;
