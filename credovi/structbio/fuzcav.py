@@ -6,7 +6,7 @@ from numpy import zeros
 
 PHARMACOPHORES = ('AC','AP','AR','DO','NE','PO')
 RANGES = {'A': (0.0, 4.8),'B': (4.8, 7.2),'C': (7.2, 9.5),'D': (9.5, 11.9),'E': (11.9, 14.3)}
-D = sorted(RANGES.items(), key=lambda x:x[1])
+D = sorted([ (k, v[1]**2) for k,v in RANGES.iteritems() ], key=lambda x:x[1])
 
 # MODIFIED BASED ON BLOSUM SUBSTITUTION SCORES
 FEATURES  = {
@@ -51,9 +51,9 @@ class FuzCavTriangle(object):
         self.A = p1
         self.B = p2
         self.C = p3
-        self.a = get_range(self.B.distance(self.C))
-        self.b = get_range(self.A.distance(self.C))
-        self.c = get_range(self.A.distance(self.B))
+        self.a = get_range((p2[0]-p3[0])**2+(p2[1]-p3[1])**2+(p2[2]-p3[2])**2)
+        self.b = get_range((p1[0]-p3[0])**2+(p1[1]-p3[1])**2+(p1[2]-p3[2])**2)
+        self.c = get_range((p1[0]-p2[0])**2+(p1[1]-p2[1])**2+(p1[2]-p2[2])**2)
         self.F1 = f1
         self.F2 = f2
         self.F3 = f3
@@ -81,9 +81,9 @@ class FuzCavTriangle(object):
 def get_range(distance):
     """
     """
-    for range, cutoff in D:
-        if distance <= cutoff[1]:
-            return range
+    for rng, cutoff in D:
+        if distance <= cutoff:
+            return rng
 
 def get_tracker():
     """
@@ -121,16 +121,18 @@ def get_tracker():
 
     return tracker
 
-def get_fingerprint(features, tracker, bits):
+def make_fp(features, tracker):
     """
     """
-    fingerprint = zeros(bits,dtype=int)
+    fingerprint = zeros(len(tracker),dtype=int)
     triplets = combinations(features, 3)
 
     for ((A,F1),(B,F2),(C,F3)) in triplets:
-        triangle = FuzCavTriangle(A.Coords,F1,B.Coords,F2,C.Coords,F3)
+        triangle = FuzCavTriangle(A,F1,B,F2,C,F3)
 
-        if not triangle.isValid(): continue
-        for feature in triangle.getFeatures(): fingerprint[tracker[feature]] += 1
+        if not triangle.isValid():
+            continue
+        for feature in triangle.getFeatures():
+            fingerprint[tracker[feature]] += 1
 
     return fingerprint.tolist()
