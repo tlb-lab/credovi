@@ -266,7 +266,7 @@ residue_interaction_pair_comments = {
         "biomolecule_id": "Primary key of the parent biomolecule.",
         "residue_bgn_id": "Primary key of the residue.",
         "residue_end_id": "Primary key of the residue.",
-        "structural_interaction_type": "Sum of the entity type bitmasks of the atom residues, e.g. 64 for protein-protein."
+        "structural_interaction_type_bm": "Sum of the entity type bitmasks of the atom residues, e.g. 64 for protein-protein."
     }
 }
 

@@ -107,8 +107,8 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
                       schema=schema)
 
     Index('idx_{0}_biomolecule_id'.format(tablename), partition.c.biomolecule_id)
-    Index('idx_{0}_atom_bgn_id'.format(tablename), partition.c.atom_bgn_id)
-    Index('idx_{0}_atom_end_id'.format(tablename), partition.c.atom_end_id)
+    #Index('idx_{0}_atom_bgn_id'.format(tablename), partition.c.atom_bgn_id)
+    #Index('idx_{0}_atom_end_id'.format(tablename), partition.c.atom_end_id)
 
     # neccessary to drop tables with sqlalchemy
     partition.add_is_dependent_on(contacts)

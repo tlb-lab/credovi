@@ -41,7 +41,7 @@ UPDATE credo_dev.lig_lig_interactions li
 UPDATE credo_dev.lig_lig_interactions li
    SET has_drug_like_ligands = true
   FROM credo_dev.ligands l1, credo_dev.ligands l2,
-       pdbchem.chem_comps c1, pdbchem.chem_comps c2
+       pdbchem_dev.chem_comps c1, pdbchem_dev.chem_comps c2
  WHERE l1.ligand_id = li.lig_bgn_id
        AND l2.ligand_id = li.lig_end_id
        AND l1.ligand_name = c1.het_id

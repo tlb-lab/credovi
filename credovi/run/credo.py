@@ -7,6 +7,8 @@ import csv
 import glob
 import string
 from math import sqrt # faster than the numpy version
+from os.path import exists, getmtime, getsize, join
+from time import time
 
 from eyesopen.oechem import *
 
@@ -83,6 +85,7 @@ def get_assembly_sets(args):
 def write_ligands(ligands, pdb, biomolecule, writer):
     """
     """
+    from eyesopen.oechem import mol_to_smiles
     for ligand in ligands:
         res_num = ligand.GetIntData('res_num') if ligand.HasData('res_num') else '\N'
         ism = mol_to_smiles(ligand, from3d=True, isomeric=True, reset_charges=True)
@@ -108,6 +111,25 @@ def write_aromatic_rings(aromatic_rings, pdb, biomolecule, writer):
 
     app.log.debug("{0} aromatic ring systems found.".format(aromatic_ring_serial))
 
+def write_pi_groups(pi_groups, pdb, biomolecule, writer):
+    """
+    """
+    pi_group_serial = 0
+    for pi_group_serial, atoms in pi_groups:
+        if len(atoms) < 3:
+            app.log.warn("Pi group {0} from pdb {1} has only {2} atoms!".format(
+                pi_group_serial, pdb, len(atoms)))
+            continue
+
+        for atom in atoms:
+            atom_serial = OEAtomGetResidue(atom).GetSerialNumber()
+
+            row = [pdb, biomolecule, pi_group_serial, atom_serial]
+
+            writer.writerow(row)
+
+    app.log.debug("{0} pi systems found.".format(pi_group_serial))
+
 def write_residues(structure, biomolecule, residues, writer):
     """
     """
@@ -118,7 +140,7 @@ def write_residues(structure, biomolecule, residues, writer):
             # for every residue atom
             atomres = OEAtomGetResidue(atom)
 
-            row = ['\N' for i in range(32)]
+            row = ['\N' for i in range(32)]  # 33
 
             # PDB DATA
             row[0]  = structure.GetTitle() # PDB
@@ -163,6 +185,7 @@ def write_residues(structure, biomolecule, residues, writer):
             row[29] = atom.GetIntData('xbond acceptor')         # HALOGEN_BOND_ACCEPTOR
             row[30] = atom.GetIntData('carbonyl oxygen')        # CARBONYL OXYGEN
             row[31] = atom.GetIntData('carbonyl carbon')        # CARBONYL CARBON
+            #row[32] = atom.GetIntData(''is_exposed')           # IS EXPOSED
 
             writer.writerow(row)
 
@@ -189,8 +212,7 @@ def do(controller):
 
         # create a path for this structure to which all data will be written
         # PDB 'divided' directory convention is used here
-        struct_data_dir = os.path.join(app.config.get('directories','credo_data'),
-                                       pdb[1:3].lower(), pdb.lower())
+        struct_data_dir = join(app.config.get('directories','credo_data'), pdb[1:3].lower(), pdb.lower())
 
         # make necessary directories recursively if not existing yet
         if not os.path.exists(struct_data_dir):
@@ -201,15 +223,32 @@ def do(controller):
 
         # open file handles for each PDB entry
         # too many filehandles for with statement...
-        atomfs = open(os.path.join(struct_data_dir, 'atoms.credo'), 'w')
-        contactfs = open(os.path.join(struct_data_dir, 'contacts.credo'), 'w')
-        ligandfs = open(os.path.join(struct_data_dir, 'ligands.credo'), 'w')
-        aromaticringfs = open(os.path.join(struct_data_dir, 'aromaticrings.credo'), 'w')
-        chainfs = open(os.path.join(struct_data_dir, 'chains.credo'), 'w')
+        out_files = ('atoms.credo', 'contacts.credo', 'ligands.credo',
+                     'aromaticrings.credo', 'pisystems.credo', 'chains.credo') # TODO: change to pigroups next time?
+        atoms_file = join(struct_data_dir, 'atoms.credo') # Last written, important to find aborted/failed runs.
+
+        if args.incremental and all(exists(join(struct_data_dir, outf)) for outf in out_files) and getsize(atoms_file) > 0:
+            app.log.info("Output files for PDB entry {} already exist. Skipped.".format(pdb))
+            continue
+        elif (args.update and all(exists(join(struct_data_dir, outf)) and
+                                  getmtime(join(struct_data_dir, outf)) >= time()-(args.update*60*60*24)
+                                  for outf in out_files) and getsize(atoms_file) > 0):
+            app.log.info("Output files for PDB entry {0} exist and are more recent than {1} days. Skipped."\
+                         .format(pdb, args.update))
+            continue
+
+        os.umask(2)
+        atomfs = open(join(struct_data_dir, 'atoms.credo'), 'w')
+        contactfs = open(join(struct_data_dir, 'contacts.credo'), 'w')
+        ligandfs = open(join(struct_data_dir, 'ligands.credo'), 'w')
+        aromaticringfs = open(join(struct_data_dir, 'aromaticrings.credo'), 'w')
+        pigroupfs = open(join(struct_data_dir, 'pigroups.credo'), 'w')
+        chainfs = open(join(struct_data_dir, 'chains.credo'), 'w')
 
         # CSV writers
         ligwriter = csv.writer(ligandfs, dialect='tabs')
         aromaticringwriter = csv.writer(aromaticringfs, dialect='tabs')
+        pigroupwriter = csv.writer(pigroupfs, dialect='tabs')
         atomwriter = csv.writer(atomfs, dialect='tabs')
         cswriter = csv.writer(contactfs, dialect='tabs')
         chainwriter = csv.writer(chainfs, dialect='tabs')
@@ -224,7 +263,7 @@ def do(controller):
             # biological assemblies already exist and are simply loaded from the directory
             if args.quat:
                 pdbcode, biomolecule = filename.split('-')
-                path = os.path.join(QUAT_OEB_DIR, pdb[1:3].lower(), pdb.lower(), assembly)
+                path = join(QUAT_OEB_DIR, pdb[1:3].lower(), pdb.lower(), assembly)
 
             # only asymmetric unit structures are supposed to be processed
             else: pass
@@ -266,8 +305,12 @@ def do(controller):
             aromatic_rings = struct.get_aromatic_rings(structure,
                                                        app.config['atom types']['aromatic'].values())
 
-            # write aromatic rings to file
+            pi_groups = struct.get_pi_groups(structure, app.config['atom types']['pi-system'].values())
+
+            # write aromatic rings and pi groups to file
             write_aromatic_rings(aromatic_rings, pdb, biomolecule, aromaticringwriter)
+
+            write_pi_groups(pi_groups, pdb, biomolecule, pigroupwriter)
 
             timer.start()
 
@@ -311,20 +354,24 @@ def do(controller):
                 IS_INTRAMOLECULAR = False
 
                 # get interacting atoms
-                if contact.GetBgn() < contact.GetEnd(): atom_bgn, atom_end = contact.GetBgn(), contact.GetEnd()
-                else: atom_bgn, atom_end = contact.GetEnd(), contact.GetBgn()
+                if contact.GetBgn() < contact.GetEnd():
+                    atom_bgn, atom_end = contact.GetBgn(), contact.GetEnd()
+                else:
+                    atom_bgn, atom_end = contact.GetEnd(), contact.GetBgn()
 
                 # first atom is entity atom
                 if atom_bgn.GetIntData('entity_serial') > 0:
 
                     # ignore contacts of non-exposed entity atoms
-                    if atom_bgn.GetIntData('is_exposed') == 0: continue
+                    if atom_bgn.GetIntData('is_exposed') == 0:
+                        continue
 
                     # second atom is entity atom
                     if atom_end.GetIntData('entity_serial') > 0:
 
                         # ignore contacts of non-exposed entity atoms
-                        if atom_end.GetIntData('is_exposed') == 0: continue
+                        if atom_end.GetIntData('is_exposed') == 0:
+                            continue
 
                         # set a flag for intra-entity contacts
                         if atom_bgn.GetIntData('entity_serial') == atom_end.GetIntData('entity_serial'):
@@ -334,16 +381,19 @@ def do(controller):
                 else:
 
                     # second atom is solvent / ignore solvent-solvent contacts
-                    if atom_end.GetIntData('entity_serial') == 0: continue
+                    if atom_end.GetIntData('entity_serial') == 0:
+                        continue
 
                     # second atom belongs to entity / ignore contacts with non-exposed entity atoms
-                    if atom_end.GetIntData('is_exposed') == 0: continue
+                    if atom_end.GetIntData('is_exposed') == 0:
+                        continue
 
                 # get the residues
                 res_bgn, res_end = OEAtomGetResidue(atom_bgn), OEAtomGetResidue(atom_end)
 
                 # ignore all intra-residue contacts
-                if OESameResidue(res_bgn, res_end): continue
+                if OESameResidue(res_bgn, res_end):
+                    continue
 
                 # get interatomic distance
                 distance = sqrt(contact.GetDist2())
@@ -441,6 +491,7 @@ def do(controller):
             contactfs.flush()
             ligandfs.flush()
             aromaticringfs.flush()
+            pigroupfs.flush()
             chainfs.flush()
 
         # close files after assembly set has been processed
@@ -448,6 +499,7 @@ def do(controller):
         contactfs.close()
         ligandfs.close()
         aromaticringfs.close()
+        pigroupfs.close()
         chainfs.close()
 
         app.log.info("finished processing assembly set for PDB entry {0} in "

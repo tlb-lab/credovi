@@ -10,8 +10,11 @@ python credovi.py mmcif currentpdbs | parallel --eta --halt 2 -n 6 python credov
 import os
 import sys
 import time
-import glob
 import string
+
+from glob import glob
+from os.path import exists, getmtime, getsize
+from time import time
 
 from eyesopen.oechem import *
 from eyesopen.predicates import *
@@ -111,14 +114,13 @@ def do(controller):
         oeb_assembly_dir = os.path.join(QUAT_OEB_DIR, pdb[1:3], pdb)
         pdb_assembly_dir = os.path.join(QUAT_PDB_DIR, pdb[1:3], pdb)
 
-        # empty assembly directories first to avoid conflicts with older
-        # predictions
-        if args.clean:
+        # empty assembly directories first to avoid conflicts with older predictions
+        if args.clean and not args.incremental:
             for path in [os.path.join(oeb_assembly_dir, "{0}-*.oeb".format(pdb)),
                          os.path.join(pdb_assembly_dir, "{0}-*.pdb".format(pdb))]:
 
                 # remove OEB and PDB files
-                for f in glob.glob(path): os.remove(f)
+                for f in glob(path): os.remove(f)
 
         # test if the processed structure does already exist
         if args.incremental:
@@ -127,13 +129,19 @@ def do(controller):
             if args.quat:
 
                 # check if assembly directory contains OEB files
-                if len(glob.glob(os.path.join(oeb_assembly_dir, "{0}-*.oeb".format(pdb)))):
-                    app.log.info("quaternary structure of {0} does already exist - skipped.".format(pdb))
+                if len(glob(os.path.join(oeb_assembly_dir, "{0}-*.oeb".format(pdb)))):
+                    app.log.info("quaternary structure of {0} already exists - skipped.".format(pdb))
                     continue
 
             # check if asymmetric unit structure exists already
             else:
                 pass
+        elif args.update:
+            existing = glob(os.path.join(oeb_assembly_dir, "{0}-*.oeb".format(pdb)))
+            if existing and min(getmtime(oeb) for oeb in existing) >= time()-(args.update*60*60*24):
+                app.log.info("Output for PDB entry {0} exists and is more recent than {1} days. Skipped."\
+                             .format(pdb, args.update))
+                continue
 
         # path to the gzipped structure in the PDB mirror
         path = os.path.join(PDB_MIRROR_DIR, pdb[1:3], 'pdb{0}.ent.gz'.format(pdb))
@@ -189,11 +197,11 @@ def do(controller):
             continue
 
         # set credo atom type flags to all atoms
-        set_atom_type_flags(structure)
+        set_atom_type_flags(structure, True)
 
         # get information about ligands and polymers from the database
         pdb_polymer_info = db.get_pdb_polymer_info(pdb)
-        pdb_ligand_info = db.get_pdb_ligand_info(pdb)
+        pdb_ligand_info  = db.get_pdb_ligand_info(pdb)
         pdb_sstruct_info = db.get_pdb_sstruct_info(pdb)
 
         # ASYMMETRIC UNIT DOES NOT CONTAIN ANY LIGANDS
@@ -201,8 +209,10 @@ def do(controller):
             app.log.debug('assymmetric unit does not contain any ligands.')
 
         # assign entity serial numbers all atoms in ASU
-        assign_entity_serials(structure, pdb_polymer_info, pdb_ligand_info,
-                              pdb_sstruct_info)
+        try:
+            assign_entity_serials(structure, pdb_polymer_info, pdb_ligand_info, pdb_sstruct_info)
+        except StandardError:
+            continue
 
         # identify the surface atoms of all entities in asymmetric structure
         identify_surface_atoms(structure)
@@ -254,30 +264,35 @@ def do(controller):
                         biomolecules.append(biomolecule)
 
                 # structure only has a single chain / no split necessary
-                else: biomolecules.append(structure)
+                else:
+                    biomolecules.append(structure)
 
             # BIOMT contains assemblies
             else:
 
                 # generate quaternary assemblies using the BIOMT data
                 biomolecules = biomol.generate_biomolecule(structure, biomt)
+                app.log.debug("generated {} biological assemblies for PDB entry {}.".format(len(biomolecules), pdb.upper()))
 
             # iterate through biomolecules and save structural data to disk
             for biomolecule in biomolecules:
 
                 # get the assembly number - important later on for the credo schema
                 assembly_serial = biomolecule.GetIntData('assembly_serial')
+                
+                app.log.debug("processing biological assembly {0} of PDB {1}".format(assembly_serial, pdb.upper()))
 
                 # bad assembly
                 if not biomolecule.NumAtoms():
                     app.log.warn("assembly {0} does not have any atoms!"
                                  .format(assembly_serial))
                     continue
-
                 # probably ligand-only structure (e.g. vancomycin)
                 elif OECount(biomolecule, OEIsPolymerAtom) == 0:
                     app.log.info("assembly {0} does not have any polymer atoms."
                                  .format(assembly_serial))
+                else:
+                    app.log.debug("assembly {} has {} atoms.".format(assembly_serial, biomolecule.NumAtoms()))
 
                 # get ligand molecules / ligand entity identifier are attached to
                 # biomolecule
@@ -293,6 +308,8 @@ def do(controller):
                     # not really necessary because ligand molecules are attached
                     # to the parent molecule
                     if args.ligands: pass
+                else:
+                    app.log.debug("No ligands found on PDB {}/{}".format(pdb.upper(), assembly_serial))
 
                 ### save structures to disk ###
 

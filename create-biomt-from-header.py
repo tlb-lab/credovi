@@ -1,8 +1,11 @@
-import os
+import os, sys
 import csv
 import gzip
 import re
 import logging
+
+from os.path import getmtime
+from datetime import datetime
 
 from sqlalchemy import *
 from sqlalchemy.schema import PrimaryKeyConstraint
@@ -12,20 +15,45 @@ from sqlalchemy.dialects.postgresql import ARRAY
 # register new dialect to write tab-delimited files
 csv.register_dialect('tabs', delimiter='\t')
 
+
+
+try:
+    from argparse import ArgumentParser
+    from getpass import getpass
+except ImportError:
+    print >> sys.stderr, "This program requires Python version 2.7 or later"
+    sys.exit(1)
+else:
+    parser = ArgumentParser()
+    parser.add_argument('-u', '--user',   dest="dbuser", help="Username on database", default='bernardo')
+    parser.add_argument('-H', '--host',   dest="dbhost", help="Location of the database server", default='bahamut')
+    parser.add_argument('-p', '--port',   dest="dbport", type=int, help="Port of the database server", default=5432)
+    parser.add_argument('-d', '--db',     dest="dbname", help="Name of the database", default='cryst')
+    parser.add_argument('-s', '--schema', dest="schema", help="Schema to use on the database", default='pdb_dev')
+    parser.add_argument('-r', '--resume', dest="skip_dump", action='store_true', help="Skip initial dump if file exists.", default=False)
+    #parser.add_argument('-f', '--force',  dest="force", action='store_true', help="Force overwrites", default=False)
+    parser.add_argument('-v', '--verbose', dest="verbose", action='store_true', help="Echo SQL commands", default=False)
+    parser.add_argument('-y', '--yes', dest="confirm", action='store_true', help="Auto-confirm", default=False)
+    parser.add_argument('-L', '--loglevel',dest="loglevel", action='store', choices=['debug','info','warn','error'],
+                        help="Logging level to display (default: info)", default='info')
+
+    opt = parser.parse_args()
+
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s",
-                    datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
+                    datefmt='%m/%d/%Y %I:%M:%S %p', level=getattr(logging, opt.loglevel.upper()))
 
 PDB_MIRROR_DIR  = "/tlbnas/mirror/pdb/data/structures/divided/pdb"
-BIOMT_DUMP      = '/tlbnas/temp/bahamut/biomt.pdb'
+BIOMT_DUMP      = '/tlbnas/temp/bahamut/biomt.%s' % opt.schema
 
-engine          = create_engine(URL(drivername='postgresql+psycopg2', username='adrian',
-                                    password='1r1d1Um', host='bahamut.bioc.cam.ac.uk',
-                                    port=5432, database='cryst'),
-                                execution_options={'autocommit':True}, echo=False)
+engine      = create_engine(URL(drivername='postgresql+psycopg2', username=opt.dbuser,
+                                password=getpass("DB Password:"), host=opt.dbhost,
+                                port=opt.dbport, database=opt.dbname),
+                            execution_options={'autocommit':True}, echo=opt.verbose)
+
 connection      = engine.connect()
 metadata        = MetaData(bind=engine)
 
-def create_tables():
+def create_tables(metadata, schema):
     """
     """
     rawdata = Table('raw_biomt', metadata,
@@ -37,7 +65,7 @@ def create_tables():
                     Column('operation_serial', Integer),
                     Column('rotation', ARRAY(Float)),
                     Column('translation', ARRAY(Float)),
-                    schema='pdb', prefixes=['unlogged'])
+                    schema=schema, prefixes=['unlogged'])
 
     Index('idx_rawdata_pdb', rawdata.c.pdb, rawdata.c.assembly_serial)
 
@@ -50,7 +78,7 @@ def create_tables():
                   Column('determined_by', ARRAY(String)),
                   Column('is_monomeric', Boolean(create_constraint=False), DefaultClause('false')),
                   Column('all_chains_at_identity', Boolean(create_constraint=False), DefaultClause('false')),
-                  schema='pdb')
+                  schema=schema)
 
     PrimaryKeyConstraint(biomt.c.biomt_id, deferrable=True, initially='deferred')
     Index('idx_biomt_assembly', biomt.c.pdb, biomt.c.assembly_serial, unique=True)
@@ -63,7 +91,7 @@ def create_tables():
                       Column('rotation', ARRAY(Float)),
                       Column('translation', ARRAY(Float)),
                       Column('is_at_identity', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                      schema='pdb')
+                      schema=schema)
 
     PrimaryKeyConstraint(biomt_ops.c.biomt_op_id, deferrable=True, initially='deferred')
     Index('idx_biomt_ops_biomt_id', biomt_ops.c.biomt_id, biomt_ops.c.pdb_chain_id)
@@ -213,123 +241,130 @@ def extract_bio_oper(remark):
 def main():
     """
     """
-    fh = open(BIOMT_DUMP, 'w')
-    writer = csv.writer(fh, dialect='tabs')
 
-    for f in get_pdb_files():
-        pdb = f[3:7]
-        path = os.path.join(PDB_MIRROR_DIR, pdb[1:3], f)
+    if os.path.exists(BIOMT_DUMP) and opt.skip_dump:
+        print >> sys.stderr, "Dump file %s exists. Reusing." % BIOMT_DUMP
+        most_recent = datetime.fromtimestamp(getmtime(BIOMT_DUMP))
+    else:
+        fh = open(BIOMT_DUMP, 'w')
+        writer = csv.writer(fh, dialect='tabs')
 
-        logging.info("starting to extract BIOMT of PDB entry {}."
-                     .format(pdb.upper()))
+        logging.info("Commencing dump.")
+        most_recent = datetime.fromtimestamp(0)
 
-        if not os.path.isfile(path):
-            logging.error("cannot extract BIOMT: path {} does not exist!"
-                          .format(path))
-            continue
+        for f in get_pdb_files():
+            pdbid = f[3:7]
+            path = os.path.join(PDB_MIRROR_DIR, pdbid[1:3], f)
 
-        # extract the REMARK 350 lines from the PDB header
-        remark = extract_remark350(path)
+            logging.info("starting to extract BIOMT of PDB entry %s.", pdbid.upper())
 
-        # parse the section and turn it into a hierarchical form
-        try:
-            biomt = extract_bio_oper(remark)
-        except (ValueError, RuntimeError) as e:
-            logging.error("cannot extract operations for PDB entry {}: {}"
-                          .format(pdb.upper(), e.message))
-            continue
+            if not os.path.isfile(path):
+                logging.error("cannot extract BIOMT: path %s does not exist!", path)
+                continue
 
-        # write transformations
-        for assembly_serial, biomols in biomt.items():
+            # extract the REMARK 350 lines from the PDB header
+            remark = extract_remark350(path)
 
-            try: assembly = biomols.pop('assembly')
-            except KeyError: assembly = '\N'
-
+            # parse the section and turn it into a hierarchical form
             try:
-                determined_by = biomols.pop('determined_by')
-                determined_by = '{' + ','.join(determined_by) + '}'
-            except KeyError:
-                determined_by = '\N'
+                biomt = extract_bio_oper(remark)
+            except StandardError, e:
+                logging.error("Could not extract operations for PDB entry %s: %s", pdbid.upper(), e.message)
+                continue
 
-            for pdb_chain_id, operation in biomols['chains'].items():
-                for operation_serial, (rx,tx) in operation.items():
-                    rx = '{' + ','.join(map(str,rx)) + '}'
-                    tx = '{' + ','.join(map(str,tx)) + '}'
+            # write transformations
+            for assembly_serial, biomols in biomt.items():
 
-                    fields = [pdb.upper(), assembly_serial, assembly, determined_by,
-                              pdb_chain_id, operation_serial, rx, tx]
+                try: assembly = biomols.pop('assembly')
+                except KeyError: assembly = '\N'
 
-                    writer.writerow(fields)
+                try:
+                    determined_by = biomols.pop('determined_by')
+                    determined_by = '{' + ','.join(determined_by) + '}'
+                except KeyError:
+                    determined_by = '\N'
 
-        fh.flush()
-    fh.close()
+                for pdb_chain_id, operation in biomols['chains'].items():
+                    for operation_serial, (rx,tx) in operation.items():
+                        rx = '{' + ','.join(map(str,rx)) + '}'
+                        tx = '{' + ','.join(map(str,tx)) + '}'
 
-    logging.info("Creating tables...")
+                        fields = [pdbid.upper(), assembly_serial, assembly, determined_by,
+                                  pdb_chain_id, operation_serial, rx, tx]
 
-    create_tables()
+                        writer.writerow(fields)
+
+            pdb_mtime = datetime.fromtimestamp(getmtime(path))
+            if pdb_mtime > most_recent:
+                most_recent = pdb_mtime
+            fh.flush()
+        fh.close()
+
+    if opt.confirm or raw_input("Tables in schema {} are about be dropped and recreated. " \
+                                "Are you sure you want to continue? [y/N] ".format(opt.schema)).strip().lower() == 'y':
+        logging.info("Creating tables...")
+        create_tables(metadata, opt.schema)
+    else:
+        print >> sys.stderr, "Aborting."
+        sys.exit(1)
 
     logging.info("Copying dump file to table...")
 
-    connection.execute("COPY pdb.raw_biomt FROM '{}'".format(BIOMT_DUMP))
+    connection.execute("COPY {}.raw_biomt FROM '{}'".format(opt.schema, BIOMT_DUMP))
 
-    logging.info("Inserting into pdb.biomt...")
+    logging.info("Inserting into {}.biomt...".format(opt.schema))
 
-    connection.execute("""
-                            INSERT INTO pdb.biomt(pdb, assembly_serial, assembly_type, determined_by)
+    connection.execute("""INSERT INTO {schema}.biomt(pdb, assembly_serial, assembly_type, determined_by)
                             SELECT DISTINCT pdb, assembly_serial, assembly_type, determined_by
-                              FROM pdb.raw_biomt
-                          ORDER BY 1,2;""")
+                              FROM {schema}.raw_biomt
+                          ORDER BY 1,2;""".format(schema=opt.schema))
 
-    logging.info("Inserting into pdb.biomt_ops...")
+    logging.info("Inserting into %s.biomt_ops...", opt.schema)
 
-    connection.execute("""
-                            INSERT INTO pdb.biomt_ops(biomt_id, pdb_chain_id, operation_serial, rotation, translation)
+    connection.execute("""INSERT INTO {schema}.biomt_ops(biomt_id, pdb_chain_id, operation_serial, rotation, translation)
                             SELECT biomt_id, pdb_chain_id, operation_serial, rotation, translation
-                              FROM pdb.biomt
-                              JOIN pdb.raw_biomt USING(pdb, assembly_serial)
-                          ORDER BY 1,2,3;
-                       """)
+                              FROM {schema}.biomt
+                              JOIN {schema}.raw_biomt USING(pdb, assembly_serial)
+                          ORDER BY 1,2,3;""".format(schema=opt.schema))
 
-    connection.execute("""
-                       UPDATE pdb.biomt_ops
+    connection.execute("COMMENT ON TABLE {schema}.biomt IS 'Most recent data: {timestamp}'"\
+                       .format(schema=opt.schema, timestamp=str(most_recent)) )
+    connection.execute("COMMENT ON TABLE {schema}.biomt_ops IS 'Most recent data: {timestamp}'"\
+                       .format(schema=opt.schema, timestamp=str(most_recent)) )
+
+
+    connection.execute("""UPDATE {schema}.biomt_ops
                           SET is_at_identity = true
-                        WHERE rotation[1] = 1 and rotation[5] = 1 and rotation[9] = 1 and sum(rotation) = 3
-                              and translation[1] = 0 and translation[2] = 0 and translation[3] = 0;
-                       """)
+                          WHERE rotation[1] = 1 and rotation[5] = 1 and rotation[9] = 1 and sum(rotation) = 3
+                              and translation[1] = 0 and translation[2] = 0 and translation[3] = 0;""".format(schema=opt.schema))
 
-    connection.execute("""
-                         UPDATE pdb.biomt b
+    connection.execute(""" UPDATE {schema}.biomt b
                             SET all_chains_at_identity = sq.all_chains_at_identity
                            FROM (
                                    SELECT biomt_id, bool_and(is_at_identity) as all_chains_at_identity
-                                     FROM pdb.biomt_ops
+                                     FROM {schema}.biomt_ops
                                  GROUP BY biomt_id
                                 ) sq
-                          WHERE sq.biomt_id = b.biomt_id;
-                       """)
+                          WHERE sq.biomt_id = b.biomt_id;""".format(schema=opt.schema))
 
-    connection.execute("""
-                         UPDATE pdb.biomt b
+    connection.execute(""" UPDATE {schema}.biomt b
                             SET assembly_size = sq.assembly_size
                            FROM (
                                    SELECT biomt_id, count(operation_serial) as assembly_size
-                                     FROM pdb.biomt_ops
+                                     FROM {schema}.biomt_ops
                                  GROUP BY biomt_id
                                 ) sq
-                          WHERE sq.biomt_id = b.biomt_id
-                       """)
+                          WHERE sq.biomt_id = b.biomt_id""".format(schema=opt.schema))
 
-    connection.execute("""
-                         UPDATE pdb.biomt b
+    connection.execute(""" UPDATE {schema}.biomt b
                             SET is_monomeric = true
                            FROM (
                                    SELECT pdb
-                                     FROM pdb.biomt
+                                     FROM {schema}.biomt
                                  GROUP BY pdb
                                    HAVING bool_and(all_chains_at_identity) = true
                                           AND max(assembly_size) = 1
                                 ) sq
-                          WHERE sq.pdb = b.pdb
-                       """)
+                          WHERE sq.pdb = b.pdb""".format(schema=opt.schema))
 
 main()

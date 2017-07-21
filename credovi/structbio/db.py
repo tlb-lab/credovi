@@ -48,11 +48,11 @@ def get_pdb_polymer_info(pdb):
                                     WHEN ep.type = 'polysaccharide(D)' THEN 4
                                     ELSE 0
                                 END AS entity_type_bm
-                    FROM        mmcif.pdbx_poly_seq_scheme p
-                    JOIN        mmcif.entity_poly ep ON p.structure_id = ep.structure_id AND p.entity_id = ep.entity_id
+                    FROM        {mmcif}.pdbx_poly_seq_scheme p
+                    JOIN        {mmcif}.entity_poly ep ON p.structure_id = ep.structure_id AND p.entity_id = ep.entity_id
                     WHERE       p.pdb_mon_id != '' AND p.Structure_ID = :pdb
                     ORDER BY    1, 3, 4
-                     """)
+                     """.format(mmcif=app.config.get('database','mmcif')))
 
     result = engine.execute(statement, pdb=pdb.upper()).fetchall()
 
@@ -69,11 +69,11 @@ def get_pdb_ligand_info(pdb):
     """
     SQL = text("""
                 SELECT      pdb_chain_id, het_id, res_num, ins_code, 2 as entity_type_bm
-                FROM        pdb.ligands
-                WHERE       pdb = :pdb AND ins_code = ' ' AND is_observed = true
+                FROM        pdb_dev.ligands
+                WHERE       pdb = :pdb AND (ins_code = '' OR ins_code = ' ') -- AND is_observed = true
                 UNION
                 SELECT      pdb_chain_id, NULL, NULL, ' ', 34 as entity_type_bm
-                FROM        pdb.peptide_ligands
+                FROM        pdb_dev.peptide_ligands
                 WHERE       pdb = :pdb
                 ORDER BY    1, 3, 4
                """)
@@ -81,11 +81,11 @@ def get_pdb_ligand_info(pdb):
     result = engine.execute(SQL, pdb=pdb.upper()).fetchall()
 
     # create a mapping between the pdb identifier of the residue and its entity type
-    ligands = (((row.pdb_chain_id, row.het_id, row.res_num, row.ins_code), row.entity_type_bm) for row in result)
+    ligands = ( ((row.pdb_chain_id, row.het_id, row.res_num, row.ins_code or ' '), row.entity_type_bm) for row in result)
     ligands = dict(ligands)
 
-    app.log.debug("structure contains {0} ligands according to mmCIF:"
-                  .format(len(ligands)))
+    app.log.debug("structure {0} contains {1} ligands according to mmCIF:"
+                  .format(pdb, len(ligands)))
 
     for tup in ligands.keys():
         app.log.debug("    {0} {1} {2}".format(*tup))
@@ -97,7 +97,7 @@ def get_pdb_sstruct_info(pdb):
     """
     statement = text("""
                     SELECT  pdb_chain_id, pdb_res_name, pdb_res_num, pdb_ins_code, sstruct_serial
-                    FROM    pdb.res_map
+                    FROM    pdb_dev.res_map
                     WHERE   pdb = :pdb
                     """)
 
@@ -124,8 +124,8 @@ def get_biomt(pdb):
     statement = text("""
                         SELECT assembly_serial, assembly_size, is_monomeric,
                                pdb_chain_id, rotation, translation, is_at_identity
-                          FROM pdb.biomt b
-                          JOIN pdb.biomt_ops o USING(biomt_id)
+                          FROM pdb_dev.biomt b
+                          JOIN pdb_dev.biomt_ops o USING(biomt_id)
                          WHERE pdb = :pdb
                       ORDER BY 1,3
                      """)

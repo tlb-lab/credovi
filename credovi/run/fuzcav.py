@@ -4,8 +4,6 @@ import numpy as np
 from sqlalchemy import and_, func, or_, Table
 from progressbar import ProgressBar, Percentage, Bar, SimpleProgress
 
-import fuzcav
-
 from credoscript import Session, metadata
 from credoscript.models import Atom, Ligand, Peptide, BindingSiteResidue
 
@@ -13,6 +11,8 @@ from credovi import app
 from credovi.schema import engine
 from credovi.util.timer import Timer
 from credovi.schema.tables.ligands import binding_site_fuzcav
+
+from credovi.structbio import fuzcav
 
 def do(controller):
     """
@@ -28,7 +28,7 @@ def do(controller):
     args = controller.pargs
 
     insert = binding_site_fuzcav.insert()
-    tracker = fuzcav.tracker()
+    tracker = fuzcav.get_tracker()
 
     # get the fuzcav side chain representative table from the credoscript metadata
     metadata.reflect(schema='bio', only=('fuzcav_rep_sc_atoms',))

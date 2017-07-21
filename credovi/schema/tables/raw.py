@@ -75,6 +75,7 @@ raw_atoms = Table('raw_atoms', metadata,
                   Column('is_xbond_acceptor', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                   Column('is_carbonyl_oxygen', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                   Column('is_carbonyl_carbon', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
+                  #Column('is_exposed', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                   schema=schema, prefixes=['unlogged'])
 
 PrimaryKeyConstraint(raw_atoms.c.pdb, raw_atoms.c.assembly_serial,
@@ -121,6 +122,20 @@ raw_rings = Table('raw_aromatic_rings', metadata,
 PrimaryKeyConstraint(raw_rings.c.pdb, raw_rings.c.assembly_serial,
                      raw_rings.c.ring_serial, raw_rings.c.atom_serial,
                      deferrable=True, initially='deferred')
+
+
+raw_pi = Table('raw_pi_groups', metadata,
+                Column('pdb', String(4), nullable=False,),
+                Column('assembly_serial', Integer, nullable=False, autoincrement=False),
+                Column('pi_serial', Integer, nullable=False, autoincrement=False),
+                Column('atom_serial', Integer, nullable=False, autoincrement=False),
+                schema=schema, prefixes=['unlogged'])
+
+PrimaryKeyConstraint(raw_pi.c.pdb, raw_pi.c.assembly_serial,
+                     raw_pi.c.pi_serial, raw_pi.c.atom_serial,
+                     deferrable=True, initially='deferred')
+
+
 
 raw_binding_site_atom_surface_areas = Table('raw_binding_site_atom_surface_areas', metadata,
                  Column('pdb', String(4), nullable=False, primary_key=True),

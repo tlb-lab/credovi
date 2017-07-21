@@ -1,4 +1,4 @@
-from cement2.core import controller
+from cement.core import controller
 
 class LigandController(controller.CementBaseController):
     """
@@ -26,13 +26,13 @@ class LigandController(controller.CementBaseController):
                 dict(action='store', metavar='PDB CODE',
                      help='PDB code to use as an offset for processing')),
 
-            (['-N', '--new'],
-                dict(action='store_true',
-                     help='Only structures that have not been processed yet')),
-
             (['-I', '--incremental'],
                 dict(action='store_true',
-                     help='only process new data')),
+                     help='Only structures that have not been processed yet')),
+            (['-U', '--update'],
+                dict(nargs='?', metavar='DAYS', type=int, default=0, const=7,
+                     help='Only process new structures or those whose output '
+                          'files are older than DAYS (default: 7)')),
 
             (['-T', '--testset'],
                 dict(action='store', metavar='SIZE',
@@ -51,9 +51,7 @@ class LigandController(controller.CementBaseController):
         """
         Default method that is called if no commands were specified.
         """
-        print self.usage_text
-        print
-        print self.help_text
+        pass
 
     @controller.expose(hide=False, help="create and insert new FuzCav fingerprints for ligands in CREDO")
     def fuzcav(self):

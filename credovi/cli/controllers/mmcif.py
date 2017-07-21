@@ -1,4 +1,4 @@
-from cement2.core import controller
+from cement.core import controller
 
 class MMCIFController(controller.CementBaseController):
     '''

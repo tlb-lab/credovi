@@ -2,7 +2,7 @@ import os
 import json
 from UserDict import UserDict
 
-from cement2.core import config
+from cement.core import config
 
 class JSONConfigParserHandler(config.CementConfigHandler):
     class Meta:
@@ -128,7 +128,11 @@ class JSONConfigParserHandler(config.CementConfigHandler):
         SUCCESS = False
 
         if os.path.isfile(file_path):
-            self.options.update(json.loads(open(file_path).read()))
+            try:
+                self.options.update(json.loads(open(file_path).read()))
+            except StandardError:
+                print "Failed to parse JSON: %s" % file_path
+                raise
 
     def set(self, section, key, value):
         """

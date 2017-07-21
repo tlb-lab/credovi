@@ -5,7 +5,7 @@
 -- UPDATE THE PDB STRUCTURE TITLE
 UPDATE      credo_dev.structures s
 SET         title = t.title
-FROM        mmcif.struct t
+FROM        mmcif_dev.struct t
 WHERE       s.pdb = t.structure_id;
 
 -- UPDATE AUTHORS OF PDB ENTRY
@@ -13,7 +13,7 @@ UPDATE      credo_dev.structures s
 SET         authors = rs.authors
 FROM        (
             select      structure_id, string_agg(name,', ') as authors
-            from        mmcif.citation_author
+            from        mmcif_dev.citation_author
             where       citation_id = 'primary'
             group by    structure_id
             ) rs
@@ -25,7 +25,7 @@ UPDATE credo_dev.structures s
             WITH sq AS
                  (
                     SELECT pdbx_database_id_pubmed as pubmed_id, array_agg(structure_id) pdbs
-                      FROM mmcif.citation
+                      FROM mmcif_dev.citation
                      WHERE pdbx_database_id_pubmed > 0
                   group by pdbx_database_id_pubmed
                  ),
@@ -48,7 +48,7 @@ UPDATE credo_dev.structures s
    SET deposition_date = sq.deposition_date, modified_date = sq.modified_date
   FROM (
           SELECT structure_id as pdb, min(date_original) as deposition_date, max(date) as modified_date
-            FROM mmcif.database_pdb_rev
+            FROM mmcif_dev.database_pdb_rev
         GROUP BY structure_id
        ) sq
  WHERE s.pdb = sq.pdb;
@@ -56,7 +56,7 @@ UPDATE credo_dev.structures s
 -- UPDATE THE EXPERIMENTAL METHOD FOR EACH STRUCTURE
 UPDATE      credo_dev.structures s
 SET         method = e.method
-FROM        mmcif.exptl e
+FROM        mmcif_dev.exptl e
 WHERE       s.pdb = e.structure_id;
 
 -- UPDATE IMPORTANT STRUCTURE FACTORS
@@ -70,14 +70,14 @@ FROM        (
                     NULLIF(r.ls_R_factor_R_work, 0) as r_factor,
                     NULLIF(r.ls_R_factor_R_free, 0) as r_free
             FROM    credo_dev.structures s
-            JOIN    mmcif.refine r ON r.structure_id = s.pdb
+            JOIN    mmcif_dev.refine r ON r.structure_id = s.pdb
             ) rs
 WHERE       s.structure_id = rs.structure_id;
 
 -- UPDATE PH OF CRYSTALLISATION
 UPDATE      credo_dev.structures s
 SET         ph = c.ph
-FROM        mmcif.exptl_crystal_grow c
+FROM        mmcif_dev.exptl_crystal_grow c
 WHERE       s.pdb = c.structure_id;
 
 -- UPDATE STRUCTURE DIFFRACTION-COMPONENT-PRECISION INDEX (DPI)
@@ -93,19 +93,19 @@ FROM        (
                     -- NUMBER OF ATOMS
                     (
                     SELECT 		structure_id, number_atoms_total AS natoms
-                    FROM 		mmcif.refine_hist
+                    FROM 		mmcif_dev.refine_hist
                     ) x1,
                     -- UNIT CELL VOLUME
                     (
                     SELECT 		structure_id, (length_a * length_b * length_c) AS va
-                    FROM 		mmcif.cell1
+                    FROM 		mmcif_dev.cell1
                     ) x2,
                     -- R FREE AND NUMBER OF CRYSTALLOGRAPHIC OBSERVATIONS
                     (
                     SELECT 		structure_id, ls_number_reflns_obs AS nobs,
                                 ls_R_factor_R_free AS r_free,
                                 ls_d_res_high AS resolution
-                    FROM 		mmcif.refine
+                    FROM 		mmcif_dev.refine
                     ) x3
             WHERE 	s.pdb = x1.structure_id
                     AND x1.structure_id = x2.structure_id
@@ -115,19 +115,28 @@ FROM        (
             ) rs
 WHERE       s.structure_id = rs.structure_id;
 
+
+-- CREATE TEMPORARY PDB_STRAND_TO_ENTITY_ID MAPPING TABLE FOR PERFORMANCE AND CONVENIENCE
+CREATE TEMPORARY TABLE pdb_strand_to_entity_id AS
+SELECT DISTINCT structure_id, pdb_strand_id , entity_id
+FROM mmcif_dev.pdbx_poly_seq_scheme p;
+
+CREATE UNIQUE INDEX  ON "pdb_strand_to_entity_id" USING btree ("structure_id", "pdb_strand_id" , "entity_id");
+
+
 -- SET THE ENTITY TYPE FOR EACH CHAIN
 UPDATE      credo_dev.chains c
 SET         chain_type = rs.type
 FROM        (
             SELECT  DISTINCT c.chain_id, ep.type
-            FROM    mmcif.entity_poly ep
-            JOIN    mmcif.pdb_strand_to_entity_id pse
+            FROM    mmcif_dev.entity_poly ep
+            JOIN    pdb_strand_to_entity_id pse
                     ON pse.structure_id = ep.structure_id AND pse.entity_id = ep.entity_id
-            JOIN    credo_dev.structures s ON s.pdb = pse.structure_id
+            JOIN    credo_dev.structures s ON s.pdb = ep.structure_id
             JOIN    credo_dev.biomolecules b ON b.structure_id = s.structure_id
             JOIN    credo_dev.chains c
                     ON c.biomolecule_id = b.biomolecule_id
-                    AND c.pdb_chain_asu_id = pse.pdb_strand_id
+                    AND c.pdb_chain_asu_id = pse.pdb_strand_id  -- pse.id -- 
             ) rs
 WHERE       c.chain_id = rs.chain_id;
 
@@ -136,8 +145,8 @@ UPDATE      credo_dev.chains c
 SET         title = TRIM(rs.pdbx_description)
 FROM        (
             SELECT  DISTINCT c.chain_id, e.pdbx_description
-            FROM    mmcif.entity e
-            JOIN    mmcif.pdb_strand_to_entity_id pse
+            FROM    mmcif_dev.entity e
+            JOIN    mmcif_dev.pdb_strand_to_entity_id pse   
                     ON pse.structure_id = e.structure_id AND pse.entity_id = e.id
             JOIN    credo_dev.structures s ON s.pdb = pse.structure_id
             JOIN    credo_dev.biomolecules b ON b.structure_id = s.structure_id
@@ -154,8 +163,8 @@ SET         chain_seq = rs.pdbx_seq_one_letter_code_can,
             chain_length = LENGTH(rs.pdbx_seq_one_letter_code_can)
 FROM        (
             SELECT  DISTINCT c.chain_id, p.pdbx_seq_one_letter_code_can
-            FROM    mmcif.entity_poly p
-            JOIN    mmcif.pdb_strand_to_entity_id pse
+            FROM    mmcif_dev.entity_poly p
+            JOIN    mmcif_dev.pdb_strand_to_entity_id pse
                     ON pse.structure_id = p.structure_id AND pse.entity_id = p.entity_id
             JOIN    credo_dev.structures s ON s.pdb = pse.structure_id
             JOIN    credo_dev.biomolecules b ON b.structure_id = s.structure_id
@@ -165,12 +174,15 @@ FROM        (
             ) rs
 WHERE       c.chain_id = rs.chain_id;
 
+-- START POLYPEPTIDES
 -- INSERT POLYPEPTIDES
    INSERT INTO credo_dev.polypeptides(chain_id)
    SELECT c.chain_id
      FROM credo_dev.chains c
           -- IGNORE ALREADY EXISTING ONES
-    WHERE c.chain_id > (SELECT COALESCE(MAX(chain_id),0) FROM credo_dev.polypeptides)
+LEFT JOIN credo_dev.polypeptides pp ON c.chain_id = pp.chain_id
+    WHERE pp.chain_id IS NULL
+   -- WHERE c.chain_id > (SELECT COALESCE(MAX(chain_id),0) FROM credo_dev.polypeptides)
           AND (c.chain_type = 'polypeptide(L)' OR c.chain_type = 'polypeptide(D)')
  ORDER BY 1;
 
@@ -182,7 +194,7 @@ FROM    (
         FROM    credo_dev.chains c
         JOIN    credo_dev.biomolecules b USING(biomolecule_id)
         JOIN    credo_dev.structures s USING(structure_id)
-        JOIN    pdb.map_regions m ON s.pdb = m.pdb AND c.pdb_chain_asu_id = m.pdb_chain_id
+        JOIN    pdb_dev.map_regions m ON s.pdb = m.pdb AND c.pdb_chain_asu_id = m.pdb_chain_id
         WHERE   m.db_source = 'EC'
         ) sq
 WHERE   p.chain_id = sq.chain_id;
@@ -195,7 +207,7 @@ FROM    (
         FROM    credo_dev.chains c
         JOIN    credo_dev.biomolecules b USING(biomolecule_id)
         JOIN    credo_dev.structures s USING(structure_id)
-        JOIN    pdb.map_regions m ON s.pdb = m.pdb AND c.pdb_chain_asu_id = m.pdb_chain_id
+        JOIN    pdb_dev.map_regions m ON s.pdb = m.pdb AND c.pdb_chain_asu_id = m.pdb_chain_id
         WHERE   m.db_source = 'NCBI' AND m.db_accession_id = '9606'
         ) sq
 WHERE   p.chain_id = sq.chain_id;
@@ -208,7 +220,7 @@ FROM    (
         FROM    credo_dev.chains c
         JOIN    credo_dev.biomolecules b USING(biomolecule_id)
         JOIN    credo_dev.structures s USING(structure_id)
-        JOIN    pdb.map_regions m ON s.pdb = m.pdb AND c.pdb_chain_asu_id = m.pdb_chain_id
+        JOIN    pdb_dev.map_regions m ON s.pdb = m.pdb AND c.pdb_chain_asu_id = m.pdb_chain_id
         JOIN    chembl.component_sequences cs ON cs.accession = m.db_accession_id
         WHERE   m.db_source = 'UniProt'
         ) sq
@@ -245,6 +257,7 @@ UPDATE credo_dev.polypeptides p
    SET is_kinase = true
   FROM chains c
  WHERE c.chain_id = p.chain_id;
+-- DONE POLYPEPTIDES
 
 -- INSERT OLIGONUCLEOTIDES
 INSERT      INTO credo_dev.oligonucleotides(chain_id, nucleic_acid_type)
@@ -281,89 +294,124 @@ SET     is_non_std = true
 WHERE   p.res_name not in ('CYS', 'ASP', 'SER', 'GLN', 'LYS', 'ILE', 'PRO', 'THR', 'PHE', 'ALA',
                            'GLY', 'HIS', 'GLU', 'LEU', 'ARG', 'TRP', 'VAL', 'ASN', 'TYR', 'MET');
 
+
 -- UPDATE RESIDUE MAP ID
-UPDATE  credo_dev.peptides p
-SET     res_map_id = m.res_map_id
-FROM    credo_dev.chains c,
-        credo_dev.biomolecules b,
-        credo_dev.structures s,
-        pdb.res_map m
-WHERE   p.chain_id = c.chain_id
-        AND c.biomolecule_id = b.biomolecule_id
-        AND b.structure_id = s.structure_id
-        AND m.pdb = s.pdb
-        AND m.pdb_chain_id = c.pdb_chain_asu_id
-        AND m.pdb_res_num = p.res_num
-        AND m.pdb_ins_code = p.ins_code;
+-- A concise temporary table to speed up things
+CREATE TEMP TABLE resmap_join AS
+  SELECT b.biomolecule_id, c.chain_id, m.pdb_res_num, m.pdb_ins_code, m.res_map_id
+    FROM credo_dev.structures s
+    JOIN credo_dev.biomolecules b ON b.structure_id = s.structure_id
+    JOIN credo_dev.chains c ON c.biomolecule_id = b.biomolecule_id
+    JOIN pdb_dev.res_map m ON m.pdb = s.pdb AND m.pdb_chain_id = c.pdb_chain_asu_id
+;
+CREATE INDEX ix_resmap_join_hier ON resmap_join USING btree (biomolecule_id, chain_id, pdb_res_num, pdb_ins_code);
+ANALYZE resmap_join;
+
+-- first disable autovacuuming because it slows the process down
+ALTER TABLE credo_dev.peptides SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+
+-- Performing update in chunks that fit in working_memory
+DO $$
+    DECLARE
+        biomol_bgn_id INTEGER;
+        biomol_end_id INTEGER;
+        max_biomol_id CONSTANT INTEGER := (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.biomolecules);
+    BEGIN
+        FOR biomol_bgn_id IN 1..max_biomol_id BY 2500 LOOP
+          biomol_end_id := biomol_bgn_id + 2499;
+
+          UPDATE  credo_dev.peptides p
+          SET     res_map_id = m.res_map_id
+          FROM    resmap_join m
+          WHERE   p.res_map_id IS NULL AND  -- optional if from scratch
+                  p.biomolecule_id BETWEEN biomol_bgn_id AND biomol_end_id
+                  AND m.biomolecule_id = p.biomolecule_id
+                  AND m.chain_id = p.chain_id
+                  AND m.pdb_res_num = p.res_num
+                  AND m.pdb_ins_code = p.ins_code;
+          RAISE NOTICE 'updated residue map id between biomolecule_id % - %', biomol_bgn_id, biomol_end_id;
+        END LOOP;
+END$$;
+
+VACUUM credo_dev.peptides;
 
 -- UPDATE MODIFIED RESIDUES
 UPDATE  credo_dev.peptides p
-SET     is_modified = true
-FROM    pdb.res_map m
+SET     is_modified = m.is_modified
+FROM    pdb_dev.res_map m
 WHERE   m.res_map_id = p.res_map_id;
+
 
 -- MUTATED PEPTIDES
 UPDATE 	credo_dev.peptides p
 SET     is_mutated = true
-FROM    pdb.res_map m
+FROM    pdb_dev.res_map m
 WHERE   m.res_map_id = p.res_map_id
         AND p.is_modified = false AND p.is_non_std = false
         AND p.one_letter_code != m.uniprot_res_name;
+
+VACUUM ANALYZE credo_dev.peptides;
+
+-- re-enable autovacuum
+ALTER TABLE credo_dev.peptides SET (autovacuum_enabled = true, toast.autovacuum_enabled = true);
+
+-- Insert interfaces
+ALTER TABLE credo_dev.interfaces SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+ANALYZE credo_dev.residue_interaction_pairs;
 
 DO $$
     DECLARE
         biomol_id INTEGER;
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES THAT ARE NOT IN THE INTERFACES TABLE YET
-        FOR biomol_id IN   SELECT biomolecule_id
-                             FROM credo_dev.biomolecules
-                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.interfaces)
+        FOR biomol_id IN SELECT biomolecule_id 
+                           FROM credo_dev.biomolecules b
+                      LEFT JOIN credo_dev.interfaces i ON b.biomolecule_id = i.biomolecule_id
+                          WHERE i.biomolecule_id IS NULL -- biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.interfaces)
                          ORDER BY 1
         LOOP
-            EXECUTE
-            '
-              INSERT INTO credo_dev.interfaces(biomolecule_id, chain_bgn_id, chain_end_id,
-                                           num_res_bgn, num_res_end, has_incomplete_res,
-                                           has_non_std_res, has_mod_res, has_mut_res)
-              SELECT pbgn.biomolecule_id,
-                        pbgn.chain_id as chain_bgn_id, pend.chain_id as chain_end_id,
-                        COUNT(DISTINCT pbgn.residue_id) AS num_res_bgn,
-                        COUNT(DISTINCT pend.residue_id) AS num_res_end,
-                        bool_or(pbgn.is_incomplete) OR bool_or(pend.is_incomplete) AS has_incomplete_res,
-                        bool_or(pbgn.is_non_std) OR bool_or(pend.is_non_std) AS has_non_std_res,
-                        bool_or(pbgn.is_modified) OR bool_or(pend.is_modified) AS has_mod_res,
-                        bool_or(pbgn.is_mutated) OR bool_or(pend.is_mutated) AS has_mut_res
-                   FROM credo_dev.residue_interaction_pairs rp
-                   JOIN credo_dev.peptides pbgn ON pbgn.residue_id = rp.residue_bgn_id
-                   JOIN credo_dev.peptides pend ON pend.residue_id = rp.residue_end_id
-                  WHERE pbgn.biomolecule_id = $1
-                        AND pbgn.chain_id != pend.chain_id
-               GROUP BY pbgn.biomolecule_id, pbgn.chain_id, pend.chain_id
-               ORDER BY 1,2,3;
-            ' USING biomol_id;
+
+            INSERT INTO credo_dev.interfaces(biomolecule_id, chain_bgn_id, chain_end_id,
+                                         num_res_bgn, num_res_end, has_incomplete_res,
+                                         has_non_std_res, has_mod_res, has_mut_res)
+            SELECT pbgn.biomolecule_id,
+                      pbgn.chain_id as chain_bgn_id, pend.chain_id as chain_end_id,
+                      COUNT(DISTINCT pbgn.residue_id) AS num_res_bgn,
+                      COUNT(DISTINCT pend.residue_id) AS num_res_end,
+                      bool_or(pbgn.is_incomplete) OR bool_or(pend.is_incomplete) AS has_incomplete_res,
+                      bool_or(pbgn.is_non_std) OR bool_or(pend.is_non_std) AS has_non_std_res,
+                      bool_or(pbgn.is_modified) OR bool_or(pend.is_modified) AS has_mod_res,
+                      bool_or(pbgn.is_mutated) OR bool_or(pend.is_mutated) AS has_mut_res
+                FROM credo_dev.residue_interaction_pairs rp
+                JOIN credo_dev.peptides pbgn ON pbgn.residue_id = rp.residue_bgn_id
+                JOIN credo_dev.peptides pend ON pend.residue_id = rp.residue_end_id
+                WHERE pbgn.biomolecule_id = biomol_id
+                    AND pbgn.chain_id != pend.chain_id
+                GROUP BY pbgn.biomolecule_id, pbgn.chain_id, pend.chain_id
+                ORDER BY 1,2,3;
 
             RAISE NOTICE 'inserted protein-protein interfaces for biomolecule %', biomol_id;
         END LOOP;
 END$$;
 
-    -- UPDATE THE PTREE PATHS OF THE INTERFACES
-    UPDATE credo_dev.interfaces i
-       SET path = sq.path
-      FROM (
-            SELECT i.interface_id,
-                   (
-                    s.pdb || '/' ||
-                    b.assembly_serial || '/' || 'I:' ||
-                    cbgn.pdb_chain_id || '-' ||
-                    cend.pdb_chain_id
-                   ) ::ptree AS path
-              FROM credo_dev.interfaces i
-              JOIN credo_dev.biomolecules b USING(biomolecule_id)
-              JOIN credo_dev.structures s USING(structure_id)
-              JOIN credo_dev.chains cbgn ON i.chain_bgn_id = cbgn.chain_id
-              JOIN credo_dev.chains cend ON i.chain_end_id = cend.chain_id
-           ) sq
-     WHERE sq.interface_id = i.interface_id;
+-- UPDATE THE PTREE PATHS OF THE INTERFACES
+UPDATE credo_dev.interfaces i
+   SET path = sq.path
+   FROM (
+        SELECT i.interface_id,
+               (
+                s.pdb || '/' ||
+                b.assembly_serial || '/' || 'I:' ||
+                cbgn.pdb_chain_id || '-' ||
+                cend.pdb_chain_id
+               ) ::ptree AS path
+          FROM credo_dev.interfaces i
+          JOIN credo_dev.biomolecules b USING(biomolecule_id)
+          JOIN credo_dev.structures s USING(structure_id)
+          JOIN credo_dev.chains cbgn ON i.chain_bgn_id = cbgn.chain_id
+          JOIN credo_dev.chains cend ON i.chain_end_id = cend.chain_id
+       ) sq
+   WHERE sq.interface_id = i.interface_id;
 
 -- UPDATE INTERFACES THAT ARE ONLY IN QUATERNARY ASSEMBLIES
 UPDATE credo_dev.interfaces i
@@ -372,17 +420,20 @@ UPDATE credo_dev.interfaces i
  WHERE cbgn.chain_id = i.chain_bgn_id AND cend.chain_id = i.chain_end_id
        AND (cbgn.is_at_identity = false OR cend.is_at_identity = false);
 
+VACUUM ANALYZE credo_dev.interfaces;
+ALTER TABLE credo_dev.interfaces SET (autovacuum_enabled = true, toast.autovacuum_enabled = true);
+
 -- RESIDUES IN PROTEIN-PROTEIN INTERFACES
-  INSERT INTO credo_dev.interface_peptide_pairs
+INSERT INTO credo_dev.interface_peptide_pairs
   SELECT DISTINCT i.interface_id, rbgn.residue_id, rend.residue_id
-    FROM credo_dev.residue_interaction_pairs rip
-    JOIN credo_dev.peptides rbgn ON rbgn.residue_id = rip.residue_bgn_id
-    JOIN credo_dev.peptides rend ON rend.residue_id = rip.residue_end_id
-    JOIN credo_dev.interfaces i ON i.chain_bgn_id = rbgn.chain_id AND i.chain_end_id = rend.chain_id
-   WHERE i.interface_id > (SELECT COALESCE(MAX(interface_id),0) FROM credo_dev.interface_peptide_pairs)
-         -- NOT INTRAMOLECULAR RESIDUE INTERACTIONS
-         AND rbgn.chain_id != rend.chain_id
-ORDER BY 1,2,3;
+  FROM credo_dev.residue_interaction_pairs rip
+  JOIN credo_dev.peptides rbgn ON rbgn.residue_id = rip.residue_bgn_id
+  JOIN credo_dev.peptides rend ON rend.residue_id = rip.residue_end_id
+  JOIN credo_dev.interfaces i ON i.chain_bgn_id = rbgn.chain_id AND i.chain_end_id = rend.chain_id
+  WHERE i.interface_id > (SELECT COALESCE(MAX(interface_id),0) FROM credo_dev.interface_peptide_pairs)
+       -- NOT INTRAMOLECULAR RESIDUE INTERACTIONS
+       AND rbgn.chain_id != rend.chain_id
+  ORDER BY 1,2,3;
 
 -- POPULATE TABLE OF PROTEIN-OLIGONUCLEOTIDE GROOVES
 DO $$
@@ -390,10 +441,11 @@ DO $$
         biomol_id INTEGER;
     BEGIN
         -- LOOP THROUGH ALL BIOMOLECULES
-        FOR biomol_id IN   SELECT DISTINCT biomolecule_id
+        FOR biomol_id IN   SELECT DISTINCT c.biomolecule_id
                              FROM credo_dev.chains c
                              JOIN credo_dev.oligonucleotides n USING(chain_id)
-                            WHERE biomolecule_id > (SELECT COALESCE(max(biomolecule_id),0) FROM credo_dev.grooves)
+                        LEFT JOIN credo_dev.grooves g ON c.biomolecule_id = g.biomolecule_id
+                            WHERE g.biomolecule_id IS NULL
                          ORDER BY 1
         LOOP
             -- INSERT CONTACTS
@@ -410,9 +462,9 @@ DO $$
                  JOIN credo_dev.peptides p ON p.residue_id = rip.residue_bgn_id
                  JOIN credo_dev.nucleotides n ON n.residue_id = rip.residue_end_id
                  JOIN credo_dev.oligonucleotides o ON o.chain_id = n.chain_id
-                WHERE p.biomolecule_id = $1
-             GROUP BY p.biomolecule_id, p.chain_id, n.chain_id, o.nucleic_acid_type
-            UNION ALL
+                 WHERE p.biomolecule_id = $1
+                 GROUP BY p.biomolecule_id, p.chain_id, n.chain_id, o.nucleic_acid_type
+               UNION ALL
                SELECT p.biomolecule_id,
                       p.chain_id AS chain_prot_id, n.chain_id AS chain_nuc_id,
                       COUNT(DISTINCT p.residue_id) as num_res_prot,
@@ -422,9 +474,9 @@ DO $$
                  JOIN credo_dev.peptides p ON p.residue_id = rip.residue_end_id
                  JOIN credo_dev.nucleotides n ON n.residue_id = rip.residue_bgn_id
                  JOIN credo_dev.oligonucleotides o ON o.chain_id = n.chain_id
-                WHERE p.biomolecule_id = $1
-             GROUP BY p.biomolecule_id, p.chain_id, n.chain_id, o.nucleic_acid_type
-             ORDER BY 1,2,3;
+                 WHERE p.biomolecule_id = $1
+                 GROUP BY p.biomolecule_id, p.chain_id, n.chain_id, o.nucleic_acid_type
+               ORDER BY 1,2,3;
             ' USING biomol_id;
 
             RAISE NOTICE 'inserted protein-oligonucleotide grooves for biomolecule %', biomol_id;
@@ -451,14 +503,15 @@ UPDATE credo_dev.grooves g
  WHERE sq.groove_id = g.groove_id;
 
 -- RESIDUES IN PROTEIN-DNA/RNA GROOVES
-  INSERT INTO credo_dev.groove_residue_pairs
+INSERT INTO credo_dev.groove_residue_pairs
   SELECT g.groove_id, p.residue_id, n.residue_id
     FROM credo_dev.grooves g
     JOIN credo_dev.peptides p ON p.chain_id = g.chain_prot_id
     JOIN credo_dev.nucleotides n ON n.chain_id = g.chain_nuc_id
     JOIN credo_dev.residue_interaction_pairs rip
          ON rip.residue_bgn_id = p.residue_id AND rip.residue_end_id = n.residue_id
-   WHERE g.groove_id > (SELECT MAX(groove_id) FROM credo_dev.groove_residue_pairs)
+LEFT JOIN credo_dev.groove_residue_pairs grp ON g.groove_id = grp.groove_id
+   WHERE grp.groove_id IS NULL
    UNION
   SELECT g.groove_id, p.residue_id, n.residue_id
     FROM credo_dev.grooves g
@@ -466,7 +519,8 @@ UPDATE credo_dev.grooves g
     JOIN credo_dev.nucleotides n ON n.chain_id = g.chain_nuc_id
     JOIN credo_dev.residue_interaction_pairs rip
          ON rip.residue_end_id = p.residue_id AND rip.residue_bgn_id = n.residue_id
-   WHERE g.groove_id > (SELECT COALESCE(MAX(groove_id),0) FROM credo_dev.groove_residue_pairs)
+LEFT JOIN credo_dev.groove_residue_pairs grp ON g.groove_id = grp.groove_id
+   WHERE grp.groove_id IS NULL
 ORDER BY 1,2,3;
 
 
@@ -480,15 +534,15 @@ WHERE  gr.groove_id = g.groove_id
        AND (p.is_incomplete = true OR n.is_incomplete = true);
 
 -- UPDATE QUATERNARY GROOVES
- UPDATE credo_dev.grooves g
+UPDATE credo_dev.grooves g
     SET is_quaternary = true
    FROM credo_dev.chains prot, credo_dev.chains nuc
   WHERE prot.chain_id = g.chain_prot_id AND nuc.chain_id = g.chain_nuc_id
         AND (prot.is_at_identity = false OR nuc.is_at_identity = false);
 
 -- BINDING SITES
-  INSERT INTO credo_dev.binding_sites(ligand_id, has_incomplete_res, has_non_std_res,
-                                  has_mod_res, has_mut_res)
+INSERT INTO credo_dev.binding_sites(ligand_id, has_incomplete_res, has_non_std_res,
+                                    has_mod_res, has_mut_res)
   SELECT ligand_id,
          bool_or(is_incomplete) as has_incomplete_res,
          bool_or(is_non_std) as has_non_std_res,
@@ -516,60 +570,114 @@ UPDATE credo_dev.binding_sites bs
        AND p.chain_id = pp.chain_id
        AND pp.is_kinase = true;
 
-   WITH result AS
-        (
-         SELECT p.chain_id, residue_id, mr.db_source, mr.db_accession_id
-           FROM pdb.map_regions mr
-           JOIN pdb.res_map rm
-                ON mr.pdb = rm.pdb
-                AND mr.pdb_chain_id = rm.pdb_chain_id
-                AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
-           JOIN credo_dev.peptides p ON p.res_map_id = rm.res_map_id
-          WHERE mr.pdb IS NOT NULL AND mr.db_source = 'Pfam'
-          UNION
-         SELECT p.chain_id, residue_id, mr.db_source, subltree(d.node, 0, 4)::text
-           FROM pdb.map_regions mr
-           JOIN pdb.res_map rm
-                ON mr.pdb = rm.pdb
-                AND mr.pdb_chain_id = rm.pdb_chain_id
-                AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
-           JOIN credo_dev.peptides p ON p.res_map_id = rm.res_map_id
-           JOIN cath.domains d on d.dmn = mr.db_accession_id
-          WHERE mr.pdb IS NOT NULL AND mr.db_source = 'CATH'
-         ),
-         domains AS
-         (
-             INSERT INTO credo_dev.domains(db_source, db_accession_id)
-             SELECT DISTINCT db_source, db_accession_id
-               FROM result
-           ORDER BY 1,2
-          RETURNING credo_dev.domains.*
-         )
-  INSERT INTO credo_dev.domain_peptides
-  SELECT DISTINCT d.domain_id, r.residue_id
-    FROM result r
+--    WITH result AS
+--         (
+--          SELECT p.chain_id, p.residue_id, mr.db_source, mr.db_accession_id
+--            FROM pdb_dev.map_regions mr
+--            JOIN pdb_dev.res_map rm
+--                 ON mr.pdb = rm.pdb
+--                 AND mr.pdb_chain_id = rm.pdb_chain_id
+--                 AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
+--            JOIN credo_dev.peptides p ON p.res_map_id = rm.res_map_id
+--           WHERE mr.pdb IS NOT NULL AND mr.db_source = 'Pfam'
+--           UNION
+--          SELECT p.chain_id, p.residue_id, mr.db_source, mr.db_accession_id -- subltree(d.cath, 0, 4)::text as db_accession_id
+--            FROM pdb_dev.map_regions mr
+--            JOIN pdb_dev.res_map rm
+--                 ON mr.pdb = rm.pdb
+--                 AND mr.pdb_chain_id = rm.pdb_chain_id
+--                 AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
+--            JOIN credo_dev.peptides p ON p.res_map_id = rm.res_map_id
+--         --   JOIN struct_classif.cath d ON mr.db_accession_id::ltree @> d.cath  -- NOT NECESSARY
+--           WHERE mr.pdb IS NOT NULL AND mr.db_source = 'CATH'
+--           UNION
+--          SELECT p.chain_id, p.residue_id, mr.db_source, d.sccs::text as db_accession_id
+--            FROM pdb_dev.map_regions mr
+--            JOIN pdb_dev.res_map rm
+--                 ON mr.pdb = rm.pdb
+--                 AND mr.pdb_chain_id = rm.pdb_chain_id
+--                 AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
+--            JOIN credo_dev.peptides p ON p.res_map_id = rm.res_map_id
+--            JOIN struct_classif.scop d ON mr.db_accession_id = d.px::text
+--           WHERE mr.pdb IS NOT NULL AND mr.db_source = 'SCOP'
+--          ),
+--          domains AS
+--          (
+--              INSERT INTO credo_dev.domains(db_source, db_accession_id)
+--              SELECT DISTINCT db_source, db_accession_id
+--                FROM result
+--            ORDER BY 1,2
+--           RETURNING credo_dev.domains.*
+--          )
+--   INSERT INTO credo_dev.domain_peptides
+--   SELECT DISTINCT d.domain_id, r.residue_id
+--     FROM result r
+--     JOIN domains d
+--          ON d.db_source = r.db_source AND d.db_accession_id = r.db_accession_id
+--  ORDER BY 1,2;
+CREATE TEMP TABLE dom_temp AS
+ SELECT rm.res_map_id, mr.db_source, mr.db_accession_id
+       FROM pdb_dev.map_regions mr
+       JOIN pdb_dev.res_map rm
+                  ON mr.pdb = rm.pdb
+                  AND mr.pdb_chain_id = rm.pdb_chain_id
+                  AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
+       WHERE mr.pdb IS NOT NULL AND (mr.db_source = 'CATH' OR mr.db_source = 'Pfam')
+ UNION ALL
+ SELECT rm.res_map_id, mr.db_source, d.sccs::text as db_accession_id
+      FROM pdb_dev.map_regions mr
+      JOIN pdb_dev.res_map rm
+              ON mr.pdb = rm.pdb
+              AND mr.pdb_chain_id = rm.pdb_chain_id
+              AND rm.sifts_res_num BETWEEN mr.sifts_res_num_start AND mr.sifts_res_num_end
+      JOIN struct_classif.scop d ON mr.db_source = 'SCOP' AND mr.db_accession_id = d.px::text
+      WHERE mr.pdb IS NOT NULL AND mr.db_source = 'SCOP';
+CREATE INDEX ix_dom_temp_res_map_id ON dom_temp USING btree ("res_map_id");
+CREATE INDEX ix_dom_temp_dom ON dom_temp USING btree ("db_source", "db_accession_id");
+ANALYZE dom_temp;
+
+WITH domains AS
+     (
+     INSERT INTO credo_dev.domains(db_source, db_accession_id)
+         SELECT DISTINCT db_source, db_accession_id
+         FROM dom_temp
+      ORDER BY 1,2
+      RETURNING credo_dev.domains.*
+     )
+INSERT INTO credo_dev.domain_peptides
+  SELECT DISTINCT d.domain_id, p.residue_id
+    FROM dom_temp r
+    JOIN credo_dev.peptides p
+         ON p.res_map_id = r.res_map_id
     JOIN domains d
          ON d.db_source = r.db_source AND d.db_accession_id = r.db_accession_id
-ORDER BY 1,2;
+  ORDER BY 1,2;
+
+--DROP TABLE IF EXISTS dom_temp;
 
 UPDATE credo_dev.domains cd
-   SET description = l.label
-  FROM cath.labels l
- WHERE cd.db_accession_id = l.node::text AND cd.db_source = 'CATH' AND l.label != 'NULL';
+   SET description = d.desc
+  FROM struct_classif.cath_desc d
+ WHERE cd.db_source = 'CATH' AND cd.db_accession_id = d.cath::text;
+
+UPDATE credo_dev.domains cd
+   SET description = d.desc
+  FROM struct_classif.scop_desc d
+ WHERE cd.db_source = 'SCOP' AND d.type = 'fa' AND cd.db_accession_id = d.sccs::text;
 
 UPDATE credo_dev.domains d
    SET description = p.description
   FROM pfam.pfam p
  WHERE p.pfam_id = d.db_accession_id AND d.db_source = 'Pfam';
 
-  INSERT INTO credo_dev.binding_site_domains
+INSERT INTO credo_dev.binding_site_domains
   SELECT DISTINCT ligand_id, domain_id
     FROM credo_dev.binding_site_residues bsr
     JOIN credo_dev.domain_peptides p ON bsr.residue_id = p.residue_id
-ORDER BY 1,2;
+  ORDER BY 1,2;
 
 UPDATE credo_dev.domains d
-   SET num_chains = sq.num_chains
+  SET num_chains = sq.num_chains
   FROM (
           SELECT domain_id, count(distinct chain_id) as num_chains
             FROM credo_dev.domain_peptides dp
@@ -594,31 +702,31 @@ UPDATE credo_dev.domains d
           SELECT domain_id, count(distinct l.ligand_id) as num_bs_with_drug_likes
             FROM credo_dev.binding_site_domains bsd
             JOIN credo_dev.ligands l on l.ligand_id = bsd.ligand_id
-            JOIN pdbchem.chem_comps cc ON cc.het_id = l.ligand_name
+            JOIN pdbchem_dev.chem_comps cc ON cc.het_id = l.ligand_name
            WHERE cc.is_drug_like = true
         GROUP BY domain_id
         order by 2 DESC
        ) sq
  WHERE sq.domain_id = d.domain_id;
 
- UPDATE credo_dev.domains d
-   SET num_bs_with_fragments = sq.num_bs_with_fragments
+UPDATE credo_dev.domains d
+  SET num_bs_with_fragments = sq.num_bs_with_fragments
   FROM (
           SELECT domain_id, count(distinct l.ligand_id) as num_bs_with_fragments
             FROM credo_dev.binding_site_domains bsd
             JOIN credo_dev.ligands l on l.ligand_id = bsd.ligand_id
-            JOIN pdbchem.chem_comps cc ON cc.het_id = l.ligand_name
+            JOIN pdbchem_dev.chem_comps cc ON cc.het_id = l.ligand_name
            WHERE cc.is_fragment = true
         GROUP BY domain_id
         order by 2 DESC
        ) sq
- WHERE sq.domain_id = d.domain_id;
+WHERE sq.domain_id = d.domain_id;
 
-  INSERT INTO credo_dev.peptide_features(res_map_id, feature_type, description, external_id)
+INSERT INTO credo_dev.peptide_features(res_map_id, feature_type, description, external_id)
   SELECT DISTINCT res_map_id, feature_type, description, external_id
-    from pdb.res_map m
+    from pdb_dev.res_map m
     JOIN uniprot.features f
          ON m.uniprot = f.accession
          AND m.uniprot_res_num between f.feature_begin AND f.feature_end
-   WHERE feature_type NOT IN ('chain','domain','helix','splice variant','strand','turn')
-ORDER BY 1;
+    WHERE feature_type NOT IN ('chain','domain','helix','splice variant','strand','turn')
+    ORDER BY 1;

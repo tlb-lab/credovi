@@ -1,9 +1,10 @@
 {
     "database":
     {
-        "echo": true,
+        "echo": false,
         "schema": "credo_dev",
-        "url": "postgresql+psycopg2://adrian:1r1d1Um@bahamut.bioc.cam.ac.uk:5432/cryst"
+        "mmcif": "mmcif_dev",
+        "url": "postgresql+psycopg2://bahamut.bioc.cam.ac.uk:5432/cryst"
     },
 
     "directories":
@@ -18,14 +19,18 @@
 
     "log":
     {
-        "file": "/home/adrian/Dumpster/credovi.log",
+        "file": "credovi.log",
         "to_console": true
     },
 
     "schema":
     {
-        "current_biomol_max": 145000,
+        "current_biomol_max": 160000,
         "atoms_partition_size": 5000,
-        "contacts_partition_size": 2500
+        "contacts_partition_size": 2500,
+        "pi_group_partition_size": 25000,
+
+        "current_lig_max": 1000000,
+        "ligand_fragment_atoms_partition_size": 100000
     }
 }

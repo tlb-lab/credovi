@@ -181,12 +181,14 @@ def generate_biomolecule(structure, biomt):
         ligand_entity_serials = get_ligand_entity_serials(biomolecule)
 
         # attach or remove from assembly
-        if ligand_entity_serials: biomolecule.SetData('ligand_entity_serials', ligand_entity_serials)
-        else: biomolecule.DeleteData('ligand_entity_serials')
+        if ligand_entity_serials:
+            biomolecule.SetData('ligand_entity_serials', ligand_entity_serials)
+        else:
+            biomolecule.DeleteData('ligand_entity_serials')
 
         # debug ligand entity serial number info in biomolecule
-        app.log.debug("Ligand entity serial numbers in assembly {0}: {1}"
-                      .format(assembly_serial, ligand_entity_serials))
+        app.log.debug("Ligand entity serial numbers in assembly {0}: {1} ({2})"
+                      .format(assembly_serial, ligand_entity_serials, biomolecule.HasData('ligand_entity_serials')))
 
         biomolecule.SetTitle(pdbcode)
         biomolecule.SetIntData('assembly_serial', assembly_serial)

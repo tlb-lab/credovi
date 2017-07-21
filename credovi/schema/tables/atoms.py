@@ -3,7 +3,7 @@ The atoms table is partitioned by biomolecule_id. Every partition will hold the
 atoms of 10,000 biomolecules.
 """
 from sqlalchemy import (Boolean, CheckConstraint, Column, DDL, Float, Index, Integer,
-                        String, Table, DefaultClause)
+                        SmallInteger, String, Table, DefaultClause)
 from sqlalchemy.event import listen
 from sqlalchemy.schema import PrimaryKeyConstraint
 
@@ -12,7 +12,7 @@ from credovi.schema import metadata, schema
 from credovi.util.sqlalchemy import PTree, Vector3D, comment_on_table_elements
 
 CURRENT_BIOMOL_MAX   = app.config.get('schema','current_biomol_max')
-ATOMS_PARTITION_SIZE = app.config.get('schema','atoms_partition_size')
+ATOMS_PARTITION_SIZE = app.config.get('schema','atoms_partition_size')  # In terms of biomolecules
 
 ATOMS_INS_RULE_DDL = """
                         CREATE OR REPLACE RULE {rule} AS
@@ -35,7 +35,7 @@ atoms = Table('atoms', metadata,
               Column('occupancy', Float(3,2), nullable=False),
               Column('b_factor', Float(4,2), nullable=False),
               Column('element', String(2)),
-              Column('hyb', Integer, nullable=False),
+              Column('hyb', SmallInteger, nullable=False),
               Column('tripos_atom_type', String(5)),
               Column('is_donor', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
               Column('is_acceptor', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
@@ -108,7 +108,7 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
                       Column('occupancy', Float(3,2), nullable=False),
                       Column('b_factor', Float(4,2), nullable=False),
                       Column('element', String(2)),
-                      Column('hyb', Integer, nullable=False),
+                      Column('hyb', SmallInteger, nullable=False),
                       Column('tripos_atom_type', String(5)),
                       Column('is_donor', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                       Column('is_acceptor', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),

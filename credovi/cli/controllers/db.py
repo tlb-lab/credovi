@@ -1,5 +1,5 @@
 from textwrap import fill
-from cement2.core import controller
+from cement.core import controller
 
 class DatabaseController(controller.CementBaseController):
     """
@@ -25,6 +25,7 @@ class DatabaseController(controller.CementBaseController):
             (['--new'], dict(action='store_true', help='copy the data files of all PDB entries that are not in CREDO yet')),
             (['--no-indexes'], dict(action='store_true', help='')),
             (['--no-constraints'], dict(action='store_true', help='')),
+            (['--add-depend'], dict(action='store_true', help='Also add dependent tables')),
             (['--parallel'], dict(action='store_true', help='use GNU parallel for certain tasks (cryst only!)')),
             ]
 

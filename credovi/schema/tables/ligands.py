@@ -1,11 +1,12 @@
-from sqlalchemy import (Boolean, Column, DDL, DefaultClause, Float, Index, Integer,
+from sqlalchemy import (Boolean, CheckConstraint, Column, DDL, DefaultClause, Float, Index, Integer,
                         LargeBinary, String, Table, Text)
 from sqlalchemy.event import listen
 from sqlalchemy.schema import PrimaryKeyConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, REAL
 
+from credovi import app
 from credovi.schema import metadata, schema
-from credovi.util.sqlalchemy import ArrayXi, Cube, PTree, comment_on_table_elements
+from credovi.util.sqlalchemy import *
 
 ligands = Table('ligands', metadata,
                 Column('ligand_id', Integer),
@@ -144,17 +145,87 @@ ligand_fragment_comments = {
 
 comment_on_table_elements(ligand_fragments, ligand_fragment_comments)
 
+
+CURRENT_LIGID_MAX = app.config.get('schema','current_lig_max')
+LFA_PARTITION_SIZE = app.config.get('schema','ligand_fragment_atoms_partition_size')  # In terms of ligands
+
+# LFA_INS_RULE_DDL = """
+#                         CREATE OR REPLACE RULE {rule} AS
+#                             ON INSERT TO {schema}.{master_table}
+#                          WHERE (ligand_id > {part_bound_low} AND ligand_id <= {part_bound_high})
+#                     DO INSTEAD INSERT INTO {schema}.{table} VALUES (NEW.*)
+#                     """
+
+
 ligand_fragment_atoms = Table('ligand_fragment_atoms', metadata,
-                              Column('ligand_fragment_atom_id', Integer, nullable=False),
+                              Column('ligand_fragment_atom_id', Integer, primary_key=True),
                               Column('ligand_id', Integer, nullable=False),
                               Column('ligand_fragment_id', Integer, nullable=False),
                               Column('atom_id', Integer, nullable=False),
+                              #Column('chem_comp_fragment_atom_id', Integer, nullable=False),
                               schema=schema)
 
 PrimaryKeyConstraint(ligand_fragment_atoms.c.ligand_fragment_atom_id, deferrable=True, initially='deferred')
-Index('idx_ligand_fragment_atoms_ligand_fragment_id', ligand_fragment_atoms.c.ligand_fragment_id, ligand_fragment_atoms.c.atom_id, unique=True)
-Index('idx_ligand_fragment_atoms_ligand_id', ligand_fragment_atoms.c.ligand_id)
-Index('idx_ligand_fragment_atoms_atom_id', ligand_fragment_atoms.c.atom_id)
+#Index('idx_ligand_fragment_atoms_ligand_fragment_id', ligand_fragment_atoms.c.ligand_fragment_id, ligand_fragment_atoms.c.atom_id, unique=True)
+#Index('idx_ligand_fragment_atoms_ligand_id', ligand_fragment_atoms.c.ligand_id)
+#Index('idx_ligand_fragment_atoms_atom_id', ligand_fragment_atoms.c.atom_id)
+#Index('idx_ligand_fragment_atoms_chem_comp_fragment_atom_id', ligand_fragment_atoms.c.chem_comp_fragment_atom_id)
+
+
+ligand_fragment_atoms_comments = {
+    "table": "Contains the atoms belonging to each ligand fragment.",
+    "columns":
+    {
+        "ligand_fragment_atom_id": "Primary key of the ligand fragment atom",
+        "ligand_id": "Primary key of the parent ligand.",
+        "ligand_fragment_id": "Primary key of the ligand fragment.",
+        "atom_id": "Primary key of the atom.",
+    }
+}
+
+comment_on_table_elements(ligand_fragment_atoms, ligand_fragment_atoms_comments)
+create_partition_insert_trigger(ligand_fragment_atoms, LFA_PARTITION_SIZE, 'ligand_id', 'ligid')
+
+# create new partitions for every X ligands
+partitions = range(0, CURRENT_LIGID_MAX+LFA_PARTITION_SIZE, LFA_PARTITION_SIZE)
+
+for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
+    tablename = 'ligand_fragment_atoms_ligid_le_{0}'.format(part_bound_high)
+    #rulename = tablename + '_insert'
+
+    partition = Table(tablename, metadata,
+                      Column('ligand_fragment_atom_id', Integer, primary_key=True),
+                      Column('ligand_id', Integer, nullable=False, index=True),
+                      Column('ligand_fragment_id', Integer, nullable=False),
+                      Column('atom_id', Integer, nullable=False, index=True),
+                      CheckConstraint("ligand_id > {0} AND ligand_id <= {1}".format(part_bound_low, part_bound_high)),
+                      #postgresql_inherits=ligand_fragment_atoms.name,  # new SQLAlchemy 1.0 feature  ## bugged! doesn't add schema name...
+                      schema=schema)
+
+    PrimaryKeyConstraint(partition.c.ligand_fragment_atom_id, deferrable=True, initially='deferred')
+    Index('idx_{}_ligand_fragment_id'.format(tablename), partition.c.ligand_fragment_id, partition.c.atom_id, unique=True)
+
+    # neccessary to drop tables with sqlalchemy
+    partition.add_is_dependent_on(ligand_fragment_atoms)
+
+    # add inheritance from master table through ddl 
+    listen(partition, "after_create",
+           DDL("ALTER TABLE %(fullname)s INHERIT {schema}.ligand_fragment_atoms".format(schema=schema)))
+
+    # # ddl to create an insert rule on the master table  # DEPRECATED
+    # listen(metadata, "after_create",
+           # DDL(LFA_INS_RULE_DDL.format(schema=schema, master_table='ligand_fragment_atoms',
+                                       # table=tablename,
+                                       # rule=rulename, part_bound_low=part_bound_low,
+                                       # part_bound_high=part_bound_high)))
+    
+    # # drop the rules on the master table because they depend on the partitions  # DEPRECATED
+    # listen(partition, "before_drop",
+           # DDL("DROP RULE IF EXISTS {rule} ON {schema}.ligand_fragment_atoms".format(schema=schema, rule=rulename)))
+
+    comment_on_table_elements(partition, ligand_fragment_atoms_comments)
+
+
 
 ligand_molstrings = Table('ligand_molstrings', metadata,
                           Column('ligand_id', Integer, nullable=False, autoincrement=False),
@@ -162,6 +233,7 @@ ligand_molstrings = Table('ligand_molstrings', metadata,
                           Column('pdb', Text, nullable=False),
                           Column('sdf', Text, nullable=False),
                           Column('oeb', LargeBinary, nullable=False),
+                          Column('rdk', RDMol),
                           schema=schema)
 
 PrimaryKeyConstraint(ligand_molstrings.c.ligand_id, deferrable=True, initially='deferred')
@@ -174,7 +246,8 @@ ligand_molstring_comments = {
         "ism": "Isomeric SMILES.",
         "pdb": "PDB format.",
         "sdf": "SDF format.",
-        "oeb": "OpenEye binary format."
+        "oeb": "OpenEye binary format.",
+        "rdk": "RDKit molecule format"
     }
 }
 
@@ -398,5 +471,15 @@ binding_site_fuzcav = Table('binding_site_fuzcav', metadata,
                             Column('repfp', ArrayXi, nullable=False),
                             schema=schema)
 
-PrimaryKeyConstraint(binding_site_fuzcav.c.ligand_id, deferrable=True,
-                     initially='deferred')
+PrimaryKeyConstraint(binding_site_fuzcav.c.ligand_id, deferrable=True, initially='deferred')
+
+# table containing the subcav fingerprint for all ligand-defined binding sites
+binding_site_subcav = Table('binding_site_subcav', metadata,
+                            Column('ligand_fragment_id', Integer, nullable=False, autoincrement=False),
+                            Column('ligand_id', Integer, nullable=False),
+                            Column('subcavfp', ArrayXi, nullable=False),
+                            schema=schema)
+
+PrimaryKeyConstraint(binding_site_subcav.c.ligand_fragment_id, deferrable=True, initially='deferred')
+Index('idx_subcav_ligid', ligands.c.ligand_id)
+

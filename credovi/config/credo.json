@@ -7,12 +7,12 @@
         "RMSD disorder cutoff": 0.25,
         "max bridged hbond dist": 6.0
     },
-    
+
     "misc":
     {
         "ligand min num atoms": 7
     },
-    
+
     "contact types":
     {
         "hbond":
@@ -69,26 +69,60 @@
         }
     },
 
+    "pdb_atom_types":
+    {
+        "ALA_N": "hbond donor", "ALA_O": "hbond acceptor", "ALA_OXT": "hbond acceptor",
+        "ARG_N": "hbond donor", "ARG_O": "hbond acceptor", "ARG_OXT": "hbond acceptor", "ARG_NE":  "hbond donor", "ARG_NH1": "hbond donor", "ARG_NH2": "hbond donor",
+        "ASN_N": "hbond donor", "ASN_O": "hbond acceptor", "ASN_OXT": "hbond acceptor", "ASN_OD1": "hbond acceptor", "ASN_ND2": "hbond donor",
+        "ASP_N": "hbond donor", "ASP_O": "hbond acceptor", "ASP_OXT": "hbond acceptor", "ASP_OD1": "hbond acceptor", "ASP_OD2": "hbond acceptor",
+        "CYS_N": "hbond donor", "CYS_O": "hbond acceptor", "CYS_OXT": "hbond acceptor", "CYS_SG":  "hbond donor",
+        "GLN_N": "hbond donor", "GLN_O": "hbond acceptor", "GLN_OXT": "hbond acceptor", "GLN_OE1": "hbond acceptor", "GLN_NE2": "hbond donor",
+        "GLU_N": "hbond donor", "GLU_O": "hbond acceptor", "GLU_OXT": "hbond acceptor", "GLU_OE1": "hbond acceptor", "GLU_OE2": "hbond acceptor",
+        "GLY_N": "hbond donor", "GLY_O": "hbond acceptor", "GLY_OXT": "hbond acceptor",
+        "HIS_N": "hbond donor", "HIS_O": "hbond acceptor", "HIS_OXT": "hbond acceptor", "HIS_ND1": ["hbond acceptor","hbond donor","pos ionisable"],
+                                                                                        "HIS_NE2": ["hbond acceptor","hbond donor","pos ionisable"],
+        "ILE_N": "hbond donor", "ILE_O": "hbond acceptor", "ILE_OXT": "hbond acceptor",
+        "LEU_N": "hbond donor", "LEU_O": "hbond acceptor", "LEU_OXT": "hbond acceptor",
+        "LYS_N": "hbond donor", "LYS_O": "hbond acceptor", "LYS_OXT": "hbond acceptor", "LYS_NZ": "hbond donor",
+        "MET_N": "hbond donor", "MET_O": "hbond acceptor", "MET_OXT": "hbond acceptor", "MET_SD": "hbond acceptor",
+        "PHE_N": "hbond donor", "PHE_O": "hbond acceptor", "PHE_OXT": "hbond acceptor",
+                                "PRO_O": "hbond acceptor", "PRO_OXT": "hbond acceptor",
+        "SER_N": "hbond donor", "SER_O": "hbond acceptor", "SER_OXT": "hbond acceptor", "SER_OG":  ["hbond acceptor","hbond donor"],
+        "THR_N": "hbond donor", "THR_O": "hbond acceptor", "THR_OXT": "hbond acceptor", "THR_OG1": ["hbond acceptor","hbond donor"],
+        "TRP_N": "hbond donor", "TRP_O": "hbond acceptor", "TRP_OXT": "hbond acceptor", "TRP_NE1": "hbond donor",
+        "TYR_N": "hbond donor", "TYR_O": "hbond acceptor", "TYR_OXT": "hbond acceptor", "TYR_OH":  ["hbond acceptor","hbond donor"],
+        "VAL_N": "hbond donor", "VAL_O": "hbond acceptor", "VAL_OXT": "hbond acceptor"
+    },
+
+    "pdb_atom_types_ext":
+    {
+        "ASN_OD1": "hbond donor", "ASN_ND2": "hbond acceptor",
+        "GLN_OE1": "hbond donor", "GLN_NE2": "hbond acceptor",
+        "HIS_CE1": ["hbond acceptor","hbond donor","pos ionisable"], "HIS_CD2": ["hbond acceptor","hbond donor","pos ionisable"]
+    },
+
     "atom types":
     {
-        "hbond acceptor":
-        {
-            "acceptor": "[$([O,S;H1;v2]-[!$(*=[O,N,P,S])]),$([O,S;H0;v2]),$([O,S;-]),$([N&v3;H1,H2]-[!$(*=[O,N,P,S])]),$([N;v3;H0]),$([n,o,s;+0]),F]"
+        "hbond acceptor": {
+            "acceptor":           "[#8,#9,$([#16;H0,H1;v2,v1]),$([N;v3;!$(N-*=!@[O,N,P,S]);!$(N-!@a);!$([NH]=!@*)]),$([nH0;+0])]",
+            "enol":               "[$([nH]:@c(=O))]",
+            "tautomeric nH":      "[n;H1;v3;!$([nH]cccc)]",
+            "NH2 terminal amide": "[N;H2;v3;$(N-C(=O))]"
         },
 
         "hbond donor":
         {
-            "donor": "[N!H0v3,N!H0+v4,OH+0,SH+0,nH+0]"
+            "donor":             "[N!H0v3,N!H0+v4,OH+0,SH+0,nH+0]",
+            "oxygen acid":       "[$(O=C([OH])-*);H0]",
+            "tautomer nH":       "[$(n:a:[nH])]",
+            "oxygen amide term": "[$(O=C-[NH2]);H0]"
         },
 
-        "xbond acceptor":
-        {
-            "acceptor": "[#7&!$([nX3,#7v5]),#8,#16&!$([#16v4,#16v6]);!$([*+1,*+2,*+3])]"
-        },
+        "xbond acceptor":  [],
 
         "xbond donor":
         {
-            "donor": "[F,Cl,Br,I;X1;$([F,Cl,Br,I]-[#6,#8]);!$([F,Cl,Br,I]C[F,Cl,Br,I])]"
+            "donor": "[Cl,Br,I;X1;$([Cl,Br,I]-[#6])]"
         },
 
         "weak hbond acceptor":
@@ -103,31 +137,32 @@
 
         "pos ionisable":
         {
-            "basic group": "[NH0+0$(*(-[C!$(*=*)])(-[C!$(*=*)])-[C!$(*=*)])!$(*-[a]),NH+0$(*(-[C!$(*=*)])-[C!$(*=*)])!$(*-[a]),NH2+0$(*-[C!$(*=*)])!$(*-[a])]",
-            "imidazole": "n1cncc1",
-            "guanidine": "N=C(-N)-N",
-            "posn": "[#7+]"
+            "basic group":       "[$([N;H2&+0][C;!$(C=*)]),$([N;H1&+0]([C;!$(C=*)])[C;!$(C=*)]),$([N;H0&+0]([C;!$(C=*)])([C;!$(C=*)])[C;!$(C=*)]);!$(N[a])]",
+            "imidazole":         "[n;R1]1[c;R1][n;R1][c;R1][c;R1]1",
+            "guanidine amidine": "NC(=N)",
+            "rdkit posn":        "[#7;+;!$([N+]-[O-])]",
+            "cations":           "[$([*+1,*+2,*+3]);!$([N+]-[O-])]"
         },
 
         "neg ionisable":
         {
-            "acidic group": "[OH,OH0-]-[C,S]=[O,P,S]",
-            "hydroxylic acid": "[OH$(*-[A]=[!#6])]"
+            "O acid group": "[$([OH,O-]-[C,S,N,P,Cl,Br,I]=O),$(O=[C,S,N,P,Cl,Br,I]-[OH,O-])]",
+            "anions":       "[*-1,*-2]"
         },
 
         "hydrophobe":
         {
-            "hydrophobe": "[#6+0!$(*~[#7,#8,F]),SH0+0v2,s+0,S^3,Cl+0,Br+0,I+0]"
+            "hydrophobe": "[#6+0!$(*~[#7,#8,F]),SH0+0v2,s+0,Cl+0,Br+0,I+0]"
         },
 
         "carbonyl oxygen":
         {
-            "oxygen": "[$([OH0]=[CX3,c])]"
+            "oxygen": "[$([OH0]=[CX3,c]);!$([OH0]=[CX3,c]-[OH,O-])]"
         },
 
         "carbonyl carbon":
         {
-            "carbon": "[$([CX3,c](=[OH0]))]"
+            "carbon": "[$([CX3,c]=[OH0]);!$([CX3,c](=[OH0])-[OH,O-])]"
         },
 
         "aromatic":
@@ -137,9 +172,15 @@
             "arom_6": "[a;r6,!R1&r5,!R1&r4,!R1&r3]1:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:[a;r6,!R1&r5,!R1&r4,!R1&r3]:1",
             "arom_7": "[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]1:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:1",
             "arom_8": "[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]1:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:[a;r8,!R1&r7,!R1&r6,!R1&r5,!R1&r4,!R1&r3]:1"
+        },
+
+        "pi-system":
+        {
+            "amide":     "C(=O)[$(N[CX3])]",
+            "guanidine": "N=C(-N)-N"
         }
     },
-    
+
     "test sets":
     {
         "small":

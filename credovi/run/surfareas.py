@@ -4,6 +4,9 @@ python credovi.py mmcif currentpdbs | parallel --eta --halt 2 -n 6 python credov
 import os
 import sys
 import csv
+
+from os.path import exists, getmtime, getsize
+from time import time
 from itertools import compress
 
 import numpy as np
@@ -28,21 +31,21 @@ def insert():
                     DECLARE
                         biomol_id INTEGER;
                     BEGIN
-                        FOR biomol_id IN SELECT DISTINCT biomolecule_id FROM credo.ligands ORDER BY 1
+                        FOR biomol_id IN SELECT DISTINCT biomolecule_id FROM credo_dev.ligands ORDER BY 1
                         LOOP
                             EXECUTE
                             '
-                               INSERT INTO credo.binding_site_atom_surface_areas
+                               INSERT INTO credo_dev.binding_site_atom_surface_areas
                                SELECT l.ligand_id, a.atom_id, rw.asa_apo, rw.asa_bound, rw.asa_delta
-                                 FROM credo.raw_binding_site_atom_surface_areas rw
-                                 JOIN credo.structures s ON s.pdb = rw.pdb
-                                 JOIN credo.biomolecules b
+                                 FROM credo_dev.raw_binding_site_atom_surface_areas rw
+                                 JOIN credo_dev.structures s ON s.pdb = rw.pdb
+                                 JOIN credo_dev.biomolecules b
                                       ON b.structure_id = s.structure_id
                                       AND b.assembly_serial = rw.assembly_serial
-                                 JOIN credo.ligands l
+                                 JOIN credo_dev.ligands l
                                       ON l.biomolecule_id = b.biomolecule_id
                                       AND l.entity_serial = rw.entity_serial
-                                 JOIN credo.atoms a
+                                 JOIN credo_dev.atoms a
                                       ON a.biomolecule_id = b.biomolecule_id
                                       AND a.atom_serial = rw.atom_serial
                                 WHERE a.biomolecule_id = $1
@@ -169,20 +172,23 @@ def do(controller):
         if args.progressbar: bar.update(counter)
 
         # create a data directory for this structure to which all data will be written
-        struct_data_dir = os.path.join(CREDO_DATA_DIR,
-                                       pdb[1:3].lower(), pdb.lower())
+        struct_data_dir = os.path.join(CREDO_DATA_DIR, pdb[1:3].lower(), pdb.lower())
 
         # make necessary directories recursively if they do not exist yet
-        if not os.path.exists(struct_data_dir):
+        if not exists(struct_data_dir):
             os.makedirs(struct_data_dir)
 
         # path to the file where the atom surface areas of all atoms will be written
-        surface_areas_path = os.path.join(struct_data_dir,
-                                          'binding_site_atom_surface_areas.credo')
+        surface_areas_path = os.path.join(struct_data_dir, 'binding_site_atom_surface_areas.credo')
 
         # do not recalculate atom surface area contributions if incremental
-        if args.incremental and os.path.exists(surface_areas_path):
+        if args.incremental and exists(surface_areas_path) and getsize(surface_areas_path) > 0:
             continue
+        elif (args.update and exists(surface_areas_path) and getmtime(surface_areas_path) >= time()-(args.update*60*60*24)
+              and getsize(surface_areas_path)):
+                app.log.info("Output for PDB entry {0} exists and is more recent than {1} days. Skipped."\
+                             .format(pdb, args.update))
+                continue
 
         # output file stream and CSV writer
         atomfs = open(surface_areas_path, 'w')
@@ -206,7 +212,11 @@ def do(controller):
 
             # get the quaternary structure
             ifs.open(str(path))
-            assembly = ifs.GetOEGraphMols().next()
+
+            try:
+                assembly = ifs.GetOEGraphMols().next()
+            except StopIteration:
+                assembly = None
 
             if not assembly:
                 app.log.warn("cannot calculate buried surface areas: "

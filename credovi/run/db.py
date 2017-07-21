@@ -8,7 +8,7 @@ from itertools import groupby
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 from credovi import app
-from credovi.schema import metadata
+from credovi.schema import metadata, schema
 from credovi.util import filesystem as fs
 from credovi.util import postgresql as pg
 
@@ -61,10 +61,10 @@ def copy(args):
         # do not use multiprocessing with VirtualBox
         pg.copy(groupiter, table=table, processes=1)
 
-def create(args):
+def create(args, tablenames=None):
     """
     """
-    if not args.tables:
+    if not tablenames:
 
         if args.raw or args.core:
             for table in metadata.tables.values():
@@ -94,25 +94,26 @@ def create(args):
                               "to drop and create the whole schema.")
                 app.close()
 
-    elif args.tables:
-        for tablename in args.tables.split(','):
+    else:
+        for tablename in tablenames:
             if tablename in metadata.tables:
                 table = metadata.tables[tablename]
                 table.drop(checkfirst=args.checkfirst)
                 table.create(checkfirst=args.checkfirst)
 
             else:
+                #current_names = metadata.tables.keys()
                 app.log.warn("cannot create table {0}: not defined in the current schema.".format(tablename))
 
-def drop(args):
+def drop(args, tablenames=None):
     """
     """
-    if not args.tables:
+    if not tablenames:
         app.log.debug("dropping all elements defined in the current schema!")
 
         metadata.drop_all(checkfirst=args.checkfirst)
 
-    elif args.tables:
+    else:
         for tablename in tablenames:
             if tablename in metadata.tables:
                 table = metadata.tables[tablename]
@@ -121,11 +122,11 @@ def drop(args):
             else:
                 app.log.error("cannot drop table {0}: not defined in the current schema.")
 
-def dump(args):
+def dump(args, tablenames=None):
     """
     """
     # complete schema
-    if not args.tables:
+    if not tablenames:
         app.log.debug("dumping metadata of all tables in the CREDO schema.")
 
         for table in metadata.tables.values():
@@ -135,7 +136,7 @@ def dump(args):
                 print CreateIndex(index, on='postgresql', bind=metadata.bind)
 
     # only specific tables
-    elif args.tables:
+    else:
 
         # check if the given tables are are defined in CREDO
         for tablename in tablenames:
@@ -166,12 +167,13 @@ def do(controller):
 
     # get all tablenames that were given on the command line as list
     if args.tables:
-
-        # split the comma-separated list of table names
-        tablenames = args.tables.split(',')
-
-        # prepend the schema name to the tables
-        tablenames = ['.'.join(('credo', name)) for name in tablenames]
+        tablenames = ['.'.join((schema, name)) if schema and not name.startswith(schema) else name
+                       for name in args.tables.split(',')]
+        if args.add_depend:
+            tablenames.extend([tab for tab in metadata.tables
+                               if tab not in tablenames and any(tab.startswith(n) for n in tablenames)])
+    else:
+        tablenames = None
 
     # no command was given, exit
     if not cmd: pass
@@ -180,13 +182,13 @@ def do(controller):
     elif cmd == 'copy': copy(args)
 
     # create elements in the CREDO database schema
-    elif cmd == 'create': create(args)
+    elif cmd == 'create': create(args, tablenames)
 
     # drop the database schema
-    elif cmd == 'drop': drop(args)
+    elif cmd == 'drop': drop(args, tablenames)
 
     # dump the currently defined CREDO database schema
-    elif cmd == 'dump': dump(args)
+    elif cmd == 'dump': dump(args, tablenames)
 
 
     # truncate tables in the database

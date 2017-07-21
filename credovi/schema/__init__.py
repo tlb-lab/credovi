@@ -11,8 +11,9 @@ __all__ = ['tables']
 engine = create_engine(app.config.get('database','url'),
                        echo=app.config.get('database','echo'))
 
-metadata = MetaData(bind=engine)
+
 schema = app.config.get('database','schema')
+metadata = MetaData(bind=engine, schema=schema)
 
 from .tables import *
 

@@ -72,7 +72,7 @@ def get_assembly_sets(args):
 
         # PDB codes are taken from a test set in the config file
         elif args.testset:
-            pdbs = map(string.upper, app.config['test sets'][args.testset])
+            pdbs = map(str.upper, app.config['test sets'][args.testset])
 
         assemblysets = _get_assembly_sets(pdbs)
 
@@ -111,6 +111,26 @@ def get_aromatic_rings(structure, patterns):
 
             yield (hit, ringatoms)
 
+
+def get_pi_groups(structure, patterns):
+    """
+    """
+    hit = 0
+    subsearch = OESubSearch()
+
+    for pattern in patterns:
+        subsearch.Init(str(pattern))
+        subsearch.SetMaxMatches(0)
+
+        for match in subsearch.Match(structure, True): # only unique matches
+            hit += 1
+
+            # get all the atoms that are part of this pi system
+            pi_atoms = list(match.GetTargetAtoms())
+
+            yield (hit, pi_atoms)
+
+
 def get_ligands(structure):
     """
     Returns a list of ligand molecules found in the structure.
@@ -118,7 +138,9 @@ def get_ligands(structure):
     ligands = []
 
     # check if structure has any ligands at all
+    app.log.debug("checking for ligands in structure {}...".format(structure.GetTitle()))
     if structure.HasData('ligand_entity_serials'):
+        app.log.debug("structure {} has ligands. processing them.".format(structure.GetTitle()))
 
         ### create a mapping between atom ids and ligand entity serials for partitioning
 
@@ -168,10 +190,10 @@ def get_ligands(structure):
                     app.log.debug("chain {0} is peptide ligand with sequence {1}."
                                   .format(pdb_chain_id, name))
 
-                # ligand has to many residues - must be an error
+                # ligand has too many residues - must be an error
                 else:
-                    app.log.fatal("ligand with entity serial number {0} has {1} residues - aborting!"
-                                  .format(entity_serial, len(residues)))
+                    app.log.fatal("PDB {0}: ligand with entity serial number {1} has {2} residues - aborting!:\n{3}"
+                                  .format(structure.GetTitle(), entity_serial, len(residues), residues))
                     app.close()
 
                 # add required information to ligand molecule
@@ -190,21 +212,44 @@ def get_ligands(structure):
     return ligands
 
 @timer("all atom types set in {0:.2f} seconds.")
-def set_atom_type_flags(structure):
+def set_atom_type_flags(structure, set_ambig=False):
     """
     Sets the CREDO atom type flags to all atoms in the given structure. Make sure
     that all atom types are set in lowercase.
     """
     atom_types = app.config['atom types']
 
+    pdb_atom_types = app.config['pdb_atom_types']
+    pdb_atom_types_ext = app.config['pdb_atom_types_ext']
+
+    for atom in structure.GetAtoms(OEIsStdProteinResidue(strict=True)):
+        atomres = OEAtomGetResidue(atom)
+
+        atom_key = "{resname}_{atomname}".format(
+            resname=atomres.GetName().strip(),
+            atomname=atom.GetName().strip())
+
+        pdb_type = pdb_atom_types.get(atom_key, pdb_atom_types_ext.get(atom_key) if set_ambig else None)
+
+        if pdb_type:
+            if isinstance(pdb_type, basestring):
+                atom.SetIntData(str(pdb_type), 1)
+            else:
+                for typ in pdb_type:
+                    atom.SetIntData(str(typ), 1)
+            atom.SetIntData('prot_atom', 1)
+
+
     for atom_type, smartsdict in atom_types.items():
 
         # only for SMARTS patterns that hit single atoms
-        if atom_type not in ('pos ionisable','neg ionisable'):
-
+        if atom_type not in ('pos ionisable','neg ionisable','pi-system') and smartsdict:
             for smarts in smartsdict.values():
-                for atom in structure.GetAtoms(OEMatchAtom(str(smarts))):
+                for atom in structure.GetAtoms(OEAndAtom(OENotAtom(OEIsStdProteinResidue(strict=True)),
+                                                         OEMatchAtom(str(smarts)))):
                     atom.SetIntData(str(atom_type),1)
+                    if atom_type == "hbond acceptor":
+                        atom.SetIntData("xbond acceptor",1)
 
     # some of the following smarts hit multiatom groups therefore pattern matching has to be used
     ss = OESubSearch()
@@ -216,7 +261,12 @@ def set_atom_type_flags(structure):
 
         for match in ss.Match(structure):
             for atom in match.GetTargetAtoms():
+                if atom.HasData('prot_atom'):
+                    continue
                 atom.SetIntData('pos ionisable',1)
+
+    for atom in structure.GetAtoms(OEIsMetal()):
+        atom.SetIntData('pos ionisable',1)
 
     # negatively ionisable atoms
     for smarts in atom_types['neg ionisable'].values():
@@ -225,6 +275,8 @@ def set_atom_type_flags(structure):
 
         for match in ss.Match(structure):
             for atom in match.GetTargetAtoms():
+                if atom.HasData('prot_atom'):
+                    continue
                 atom.SetIntData('neg ionisable',1)
 
     # all water molecules are hydrogen bond donors and acceptors
@@ -393,8 +445,10 @@ def assign_entity_serials(structure, pdb_polymer_info, pdb_ligand_info, pdb_sstr
 
         # should not enter here
         else:
-            app.log.warn("no entity serial number and bit mask assigned to atom {0} of {1}"
-                         .format(atom, residue))
+            app.log.warn(("\033[93mno entity serial number and bit mask assigned to atom {0} of {1}. " +
+                         "PDB_ID: {2}, size pdb_ligand_info: {3}, size pdb_polymer_info: {4}. Maybe outdated tables?\033[0m")
+                         .format(atom, residue, pdb_id, len(pdb_ligand_info), len(pdb_polymer_info)))
+            raise RuntimeError("Missing PDB entry on pdb_polymer|ligand_info. Outdated tables?")
 
     # attach the entity identifiers of ligands (if any) to the structure
     if ligand_entity_serials:

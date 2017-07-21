@@ -1,0 +1,30 @@
+OpenEye conversion hurdles:
+
+For PDBCHEM schema:
+- IUPAC Naming: No open source alternative. Free academic of http://www.xemistry.com/academic maybe?
+- RingSystem Determination from OE has no strict equivalent 
+- XLogP only on CDK (Cinfony). Other logP implementations exist.
+- Not all fingerprints, but RDKit has some
+- Fragmentation -> use molblocks
+- Conformer generation: RDKit, Frog2 (GPL)
+- normalized ratios (NPRs) of principal moments of inertia (PMI) requires re-implementation, but doable
+
+For CREDOVI:
+	General: 
+		- OEB convenience features will need to be emulated/worked around somehow (see below). Maybe some sort of pickle?
+		- Performance concerns?
+		
+	For preparepdbs:
+		- Calculation of surface areas needs replacement. MMTK / PyMOL? CDK/Cinfony? Reimplementation?
+
+	For ligand surfareas:
+		- Calculation of surface areas needs replacement. MMTK / PyMOL? CDK/Cinfony? Reimplementation?
+	For ligand molstrings:
+		- USRCAT is currently OpenEye dependent, but could be transformable.
+		- OEB column will need to be dropped
+		
+		
+OEB Useful Features:
+- Pre-processed ligand list
+- Secondary Structure
+- Reliable AddMols

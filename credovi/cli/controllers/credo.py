@@ -1,4 +1,4 @@
-from cement2.core import controller
+from cement.core import controller
 from textwrap import fill
 
 class CredoController(controller.CementBaseController):
@@ -32,7 +32,12 @@ class CredoController(controller.CementBaseController):
 
             (['-N', '--new'],
                 dict(action='store_true',
-                     help='Only structures that have not been processed yet')),
+                     help='Only process structures that have not been processed yet')),
+                     
+            (['-U', '--update'],
+                dict(nargs='?', metavar='DAYS', type=int, default=0, const=7,
+                     help='Only process new structures or those whose output '
+                          'files are older than DAYS (default: 7)')),
 
             (['-I', '--incremental'],
                 dict(action='store_true',

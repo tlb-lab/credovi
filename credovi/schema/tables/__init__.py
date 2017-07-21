@@ -1,10 +1,11 @@
-from .raw import raw_atoms, raw_contacts, raw_ligands, raw_rings, raw_chains
+from .raw import raw_atoms, raw_contacts, raw_ligands, raw_rings, raw_chains, raw_pi
 from .structures import structures
 from .biomolecules import biomolecules
 from .chains import chains, polypeptides, oligonucleotides, polysaccharides
 from .residues import nucleotides, peptides, residues, saccharides, residue_interaction_pairs
 from .aromaticrings import (aromatic_rings, aromatic_ring_atoms, atom_ring_interactions,
                             ring_interactions)
+from .pi_groups import pi_groups, pi_atoms, pi_interactions
 from .atoms import atoms
 from .contacts import contacts
 from .grooves import grooves, groove_residue_pairs

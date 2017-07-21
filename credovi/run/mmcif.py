@@ -5,6 +5,7 @@ as well in order to identify entities, etc..
 """
 from sqlalchemy import create_engine, text
 
+from credovi import app
 from credovi.schema import engine
 
 def apply_offset(pdbs, offset):
@@ -39,12 +40,13 @@ def get_current_pdbs(args):
     '''
     statement = text("""
                        SELECT structure_id as pdb
-                         FROM mmcif.entry e
-                    LEFT JOIN pdb.banned b ON e.structure_id = b.pdb
+                         FROM {mmcif}.entry e
+                    LEFT JOIN pdb_dev.banned b ON e.structure_id = b.pdb
                         WHERE b.pdb IS NULL
                      ORDER BY 1
-                     """)
+                     """.format(mmcif=app.config.get('database','mmcif')))
 
+    engine.echo = False  # Forced echo off since SQLAlchemy prints to STDOUT and output gets mixed with the PDB list.
     result = engine.execute(statement).fetchall()
 
     pdbs = (row['pdb'] for row in result)
@@ -63,4 +65,5 @@ def do(controller):
     # get the command line arguments and options
     args = controller.pargs
 
-    for pdb in get_current_pdbs(args): print pdb
+    for pdb in get_current_pdbs(args):
+        print pdb

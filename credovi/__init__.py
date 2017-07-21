@@ -1,7 +1,7 @@
 import os
 import glob
 
-from cement2.core import backend, foundation, handler
+from cement.core import backend, foundation, handler
 
 from cli import JSONConfigParserHandler
 from cli import controllers
@@ -25,7 +25,6 @@ handler.register(controllers.CredoController)
 handler.register(controllers.CredoStandAloneController)
 handler.register(controllers.MMCIFController)
 handler.register(controllers.LigandController)
-
 handler.register(controllers.ModuleController)
 
 # setup the application

@@ -1,17 +1,21 @@
-﻿TRUNCATE TABLE credo_dev.xrefs;
+﻿-- ADDITIONAL TABLE DEPENDENCIES: drugbank[_dev], chembl, polypeptides, scifdw wrapper
+
+TRUNCATE TABLE credo_dev.xrefs;
+
+ALTER TABLE credo_dev.xrefs SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
 
 -- PUBMED IDS FOR PDB STRUCTURES
-INSERT      INTO credo_dev.xrefs(entity_type, entity_id, source, xref, description)
-SELECT      DISTINCT 'Structure', s.structure_id, 'PubMed',c.pdbx_database_id_PubMed, c.journal_id_ASTM
-FROM        credo_dev.structures s
-JOIN        mmcif.citation c ON s.pdb = c.structure_id
-WHERE       pdbx_database_id_PubMed > 0
-ORDER BY    s.structure_id;
+INSERT    INTO credo_dev.xrefs(entity_type, entity_id, source, xref, description)
+SELECT    DISTINCT 'Structure', s.structure_id, 'PubMed',c.pdbx_database_id_PubMed, c.journal_id_ASTM
+FROM      credo_dev.structures s
+JOIN      mmcif_dev.citation c ON s.pdb = c.structure_id
+WHERE     pdbx_database_id_PubMed > 0
+ORDER BY  s.structure_id;
 
 -- CROSS REFERENCES FOR PDB CHAINS FROM MSD SIFTS
   INSERT INTO credo_dev.xrefs(entity_type, entity_id, source, xref)
   SELECT DISTINCT 'Chain', c.chain_id, db_source, db_accession_id
-    FROM pdb.map_regions mr
+    FROM pdb_dev.map_regions mr
     JOIN credo_dev.structures s ON s.pdb = mr.pdb
     JOIN credo_dev.biomolecules b ON s.structure_id = b.structure_id
     JOIN credo_dev.chains c
@@ -22,38 +26,38 @@ ORDER BY 2,3,4;
 -- DRUGBANK COMPOUNDS
 INSERT      INTO credo_dev.xrefs(entity_type, entity_id, source, xref, description)
 SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'DrugBank Compound', d.drugbank_id as xref, d.name
-FROM        drugbank.smiles ds
-JOIN        drugbank.drugs d USING(drugbank_id)
-JOIN        pdbchem.chem_comps cp ON cp.ism = ds.ism
+FROM        drugbank_dev.smiles ds
+JOIN        drugbank_dev.drugs d USING(drugbank_id)
+JOIN        pdbchem_dev.chem_comps cp ON cp.ism = ds.ism
 ORDER BY    2,4;
 
 -- DRUGBANK TARGETS
 INSERT      INTO credo_dev.xrefs(entity_type, entity_id, source, xref)
 SELECT      DISTINCT 'Chain', x.entity_id, 'DrugBank Target', tx.target_id as xref
 FROM        credo_dev.xrefs x
-JOIN        drugbank.target_xrefs tx ON tx.xref = x.xref
-WHERE       x.source = 'UniProt' AND tx.source = 'UniProtKB'
+JOIN        drugbank_dev.target_xrefs tx ON tx.xref = x.xref
+WHERE       x.source = 'UniProt' AND tx.resource = 'UniProtKB'
 ORDER BY    2,4;
 
 -- CHEMBL COMPOUNDS
 INSERT      INTO credo_dev.xrefs(entity_type, entity_id, source, xref, description)
 SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'ChEMBL Compound', u.chembl_id as xref, md.pref_name
 FROM        scifdw.unichem_pdb_to_chembl u
-JOIN        pdbchem.chem_comps cp ON cp.het_id = u.het_id
+JOIN        pdbchem_dev.chem_comps cp ON cp.het_id = u.het_id
 LEFT JOIN   chembl.molecule_dictionary md on md.chembl_id = u.chembl_id
 ORDER BY    2,4;
 
 -- KEGG COMPOUNDS / REQUIRES SCIFDW FOREIGN DATA WRAPPER!!!
 INSERT      INTO credo_dev.xrefs(entity_type, entity_id, source, xref)
 SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'KEGG Compound', u.compound_id as xref
-FROM        pdbchem.chem_comps cp
+FROM        pdbchem_dev.chem_comps cp
 JOIN        scifdw.unichem_pdb_to_kegg u ON cp.het_id = u.het_id
 ORDER BY    2,4;
 
 -- CHEBI COMPOUNDS / REQUIRES SCIFDW FOREIGN DATA WRAPPER!!!
 INSERT      INTO credo_dev.xrefs(entity_type, entity_id, source, xref)
 SELECT      DISTINCT 'ChemComp', cp.chem_comp_id, 'ChEBI', u.chebi_id as xref
-FROM        pdbchem.chem_comps cp
+FROM        pdbchem_dev.chem_comps cp
 JOIN        scifdw.unichem_pdb_to_chebi u ON cp.het_id = u.het_id
 ORDER BY    2,4;
 
@@ -102,13 +106,17 @@ ORDER BY    2,4;
     JOIN chembl.assays a ON a.tid = tc.tid AND a.doc_id = d.doc_id
 ORDER BY 2,4;
 
+ALTER TABLE credo_dev.xrefs SET (autovacuum_enabled = true, toast.autovacuum_enabled = true);
+
+VACUUM ANALYZE credo_dev.xrefs;
+
 -- UPDATE FLAG FOR LIGAND DRUG-TARGET INTERACTIONS
 CREATE TEMP TABLE ligand_to_drugbank AS
 SELECT DISTINCT l.ligand_id, dd.drugbank_id
   FROM credo_dev.ligands l
-  JOIN pdbchem.chem_comps cc ON cc.het_id = l.ligand_name
+  JOIN pdbchem_dev.chem_comps cc ON cc.het_id = l.ligand_name
   JOIN credo_dev.xrefs xr ON xr.entity_id = cc.chem_comp_id
-  JOIN drugbank.drugs dd ON dd.drugbank_id = xr.xref
+  JOIN drugbank_dev.drugs dd ON dd.drugbank_id = xr.xref
  WHERE xr.entity_type = 'ChemComp'
        AND xr.source = 'DrugBank Compound'
        AND dd.groups @> ARRAY['approved'];
@@ -124,7 +132,7 @@ UPDATE credo_dev.ligands l
           JOIN credo_dev.binding_site_residues bs ON bs.ligand_id = ld.ligand_id
           JOIN credo_dev.peptides p ON bs.residue_id = p.residue_id
           JOIN credo_dev.xrefs xc ON xc.entity_type = 'Chain' and xc.entity_id = p.chain_id
-          JOIN drugbank.drug_to_target dt ON dt.drugbank_id = ld.drugbank_id AND dt.target_id = xc.xref::int
+          JOIN drugbank_dev.drug_to_target dt ON dt.drugbank_id = ld.drugbank_id AND dt.target_id = xc.xref
          WHERE xc.source = 'DrugBank Target'
        ) sq
   WHERE l.ligand_id = sq.ligand_id;
@@ -135,7 +143,7 @@ UPDATE credo_dev.structures s
             WITH sq AS
                  (
                     SELECT pdbx_database_id_pubmed as pubmed_id, array_agg(structure_id) pdbs
-                      FROM mmcif.citation
+                      FROM mmcif_dev.citation
                      WHERE pdbx_database_id_pubmed > 0
                   group by pdbx_database_id_pubmed
                  ),
