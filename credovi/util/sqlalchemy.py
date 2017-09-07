@@ -96,7 +96,8 @@ class Vector3D(types.UserDefinedType):
         return process
 
 class RDMol(types.TypeDecorator):
-    """Custom type for RDKit Molecule type""" 
+    """Custom type for RDKit Molecule type"""
+    __visit_name__ = 'rdkit.mol'
     impl = BYTEA
 
     def get_col_spec(self):
@@ -166,7 +167,7 @@ def comment_on_table_elements(table, comments):
             comment = comments['columns'].pop(column.name)
         except KeyError: pass
 
-        event.listen(table, "after_create", CreateComment(column, comment))
+        event.listen(table, "after_create", CreateComment(column, comments['columns']))
         
     if len(comments['columns']):
         print "WARNING: The following provided column comments for table %s were not applied:\n%s" % (table.name, comments['columns'])

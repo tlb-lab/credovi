@@ -71,15 +71,20 @@ def create(args, tablenames=None):
 
                 # only create the 'raw' tables used for loading data
                 if args.raw and table.name.startswith('raw'):
-                    table.drop(checkfirst=args.checkfirst)
+                    if not args.missing:
+                        app.log.debug("Dropping tables")
+                        #table.drop(checkfirst=args.checkfirst)
                     table.create(checkfirst=args.checkfirst)
 
                 # core tables
                 elif args.core and table.name.startswith('raw'):
-                    metadata.remove(table)
+                    app.log.debug("Dropping tables")
+                    #metadata.remove(table)
 
             if args.core:
-                metadata.drop_all(checkfirst=args.checkfirst)
+                if not args.missing:
+                    app.log.debug("Dropping tables")
+                    #metadata.drop_all(checkfirst=args.checkfirst)
                 metadata.create_all(checkfirst=args.checkfirst)
 
         # create all tables
@@ -87,7 +92,9 @@ def create(args, tablenames=None):
             if args.sure:
                 app.log.info("creating all elements defined in the current schema!")
 
-                metadata.drop_all(checkfirst=args.checkfirst)
+                if not args.missing:
+                    app.log.debug("Dropping tables")
+                    #metadata.drop_all(checkfirst=args.checkfirst)
                 metadata.create_all(checkfirst=args.checkfirst)
             else:
                 app.log.error("you must specify the --sure option before attempting "
@@ -98,7 +105,8 @@ def create(args, tablenames=None):
         for tablename in tablenames:
             if tablename in metadata.tables:
                 table = metadata.tables[tablename]
-                table.drop(checkfirst=args.checkfirst)
+                if not args.missing:
+                    table.drop(checkfirst=args.checkfirst)
                 table.create(checkfirst=args.checkfirst)
 
             else:

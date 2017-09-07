@@ -1,4 +1,6 @@
-﻿--------------------------------------------------------------------------------
+﻿-- noinspection SqlNoDataSourceInspectionForFile
+
+--------------------------------------------------------------------------------
 -- Start with the tables that query the raw_ tables. That makes it easier to  --
 -- update CREDO because these tables will only contain the new data.          --
 --------------------------------------------------------------------------------
@@ -636,7 +638,6 @@ DO $$
                                       EXCEPT
                                       SELECT biomolecule_id FROM credo_dev.pi_interactions
                                      ) sq
-                              WHERE biomolecule_id < 3000
                             ORDER BY 1
         LOOP
             WITH pires AS (

@@ -4,7 +4,8 @@
         "echo": false,
         "schema": "credo_dev",
         "mmcif": "mmcif_dev",
-        "url": "postgresql+psycopg2://bahamut.bioc.cam.ac.uk:5432/cryst"
+        "url": "postgresql+psycopg2://bahamut.bioc.cam.ac.uk:5432/cryst",
+        "username": "bernardo"
     },
 
     "directories":
@@ -25,7 +26,7 @@
 
     "schema":
     {
-        "current_biomol_max": 160000,
+        "current_biomol_max": 175000,
         "atoms_partition_size": 5000,
         "contacts_partition_size": 2500,
         "pi_group_partition_size": 25000,

@@ -59,6 +59,12 @@ class LigandController(controller.CementBaseController):
         """
         pass
 
+    @controller.expose(hide=False, help="create and insert new pocket fingerprints of ligands in CREDO using SubCav and FuzCav")
+    def pocket_fp(self):
+        """
+        """
+        pass
+
     @controller.expose(hide=False, help="insert ligand structures in different file formats")
     def molstrings(self):
         """

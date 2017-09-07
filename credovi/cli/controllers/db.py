@@ -20,6 +20,7 @@ class DatabaseController(controller.CementBaseController):
             (['--echo'], dict(action='store_true', help='echo all issued SQL statements')),
             (['--raw'], dict(action='store_true', help="only include the 'raw' tables that are used for loading data")),
             (['--core'], dict(action='store_true', help="only include the 'core' tables")),
+            (['--missing'], dict(action='store_true', help="only include missing tables (i.e. do not drop pre-existing) (creation only)")),
             (['--cascade'], dict(action='store_true', help='CASCADE all drop statements')),
             (['--sure'], dict(action='store_true', help='extra flag that needs to be specified for certain operations on the database')),
             (['--new'], dict(action='store_true', help='copy the data files of all PDB entries that are not in CREDO yet')),

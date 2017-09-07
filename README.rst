@@ -33,26 +33,32 @@ Phase 2 - Generating CREDO's raw tables (location: multi-core server with OpenEy
         "python credovi.py mmcif currentpdbs | parallel --eta --halt 1 -n 6 python credovi.py ligand surfareas -Q -S {1},{2},{3},{4},{5},{6}"
     
 	Create tables on the schema with ''python credovi.py db create --sure --echo --checkfirst''
-    
-	
+
 Phase 3 - Loading and generating CREDO's derived tables (SQL based)
-	Run "bash load-credo-db-data.sh credo_dev" and "bash load-bindingsite-atom-surface-areas.sh credo_dev" on the database server (Bahamut)
-    Execute ''populate.sql'' (e.g. 'psql -d cryst -f populate.sql -e' from Bahamut) (this will take a while)
+	- Run "bash load-credo-db-data.sh credo_dev" and "bash load-bindingsite-atom-surface-areas.sh credo_dev" on the database server (Bahamut)
+    - Execute ''populate.sql'' (e.g. 'psql -d cryst -f populate.sql -e' from Bahamut)
+     (this will take a good while, i.e. several days; however, if progress at individual steps is too slow and it looks like the whole process could take more than 1-2 weeks,
+     it is likely that something broke, messing with index performance. A probable cause is an overflow in the max biomolecule_id in partitioned tables; see general notes) )
 	
-	After the initial populating of the ligand related schemas, the following can be performed:    
+	- After the initial populating of the ligand related schemas, the following can be performed:
 		"python credovi.py mmcif currentpdbs | parallel --eta --halt 1 -n 6 python credovi.py ligand molstrings --usr -Q -S {1},{2},{3},{4},{5},{6}"
 		Execute: "CLUSTER credo_dev.ligand_usr" on SQL after finishing the previous operation.
 
-    Run the rest of the SQL scripts required, e.g. in PgAdmin:
+        PENDING FIX!
+        "python credovi.py mmcif currentpdbs | parallel --eta --halt 1 -n 6 python credovi.py ligand pocket_fp -Q -S {1},{2},{3},{4},{5},{6}"
+
+    - Run the rest of the SQL scripts required, e.g. in PgAdmin:
             1) update-mmcif-dependent-fields.sql -> xrefs.sql -> update-ligands-with-kegg.sql, update-ligands-with-intenz.sql
              (intenz requires up-to-date pdb_chain_* from SIFTs schema, themselves created from data at ftp://ftp.ebi.ac.uk/pub/databases/msd/sifts/csv/)
             2) ligand-fragments.sql, ligand-ligand-interactions.sql, ligand-nucleic-acid-interactions.sql
                         
-    Copy from ''credo_dev'' to ''credo'', to overwrite the old CREDO
+    - Rename ''credo_dev'' to ''credo'', to replace the previous version.
 
 ==== General Notes ====
 
     Keep an eye out for any schema changes in dependencies, e.g. ChEMBL
+    Parallel executions of credovi that connect to the database should have the default credovi/config/config.json edited to include password in the URL
     The API and web interface should continue to work as long as the database schemas are not changed
-    Keep an eye on the number of ''biomolecule_id''s. We'll need to increase ''current_biomol_max'' as the number increases to keep up with the number of partitions required for contacts tables.
+    Keep an eye on the number of ''biomolecule_id''s. We'll need to increase ''current_biomol_max'' on config.json
+    as the number increases to keep up with the number of partitions required for several tables.
 

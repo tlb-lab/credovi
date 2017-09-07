@@ -165,7 +165,7 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
 
     residues_partition = Table(residues_tablename, metadata,
                                Column('pi_id', Integer, nullable=False, autoincrement=False),
-                               Column('biomolecule_id', Integer, nullable=False),
+                               Column('biomolecule_id', Integer, index=True, nullable=False),
                                Column('residue_id', Integer, nullable=False),
                                Column('path', PTree, nullable=False),
                                CheckConstraint("biomolecule_id > {0} AND biomolecule_id <= {1}".format(part_bound_low, part_bound_high)),
@@ -179,8 +179,8 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
     residues_partition.add_is_dependent_on(pi_group_res)
 
     # # add inheritance from master table through ddl - NO LONGER NECESSARY UNDER SQLALCHEMY 1.0
-    listen(residues_partition, "after_create",
-           DDL("ALTER TABLE %(fullname)s INHERIT {schema}.pi_group_residues".format(schema=schema)))
+    # listen(residues_partition, "after_create",
+    #        DDL("ALTER TABLE %(fullname)s INHERIT {schema}.pi_group_residues".format(schema=schema)))
 
     ## ddl to create an insert rule on the master table  # DEPRECATED
     # listen(metadata, "after_create",

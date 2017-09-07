@@ -7,10 +7,11 @@ will hold 5000 biomolecules.
 from sqlalchemy import Boolean, CheckConstraint, Column, DDL, Float, Index, Integer, Table, DefaultClause
 from sqlalchemy.event import listen
 from sqlalchemy.schema import PrimaryKeyConstraint
+from sqlalchemy.sql.elements import quoted_name
 
 from credovi import app
 from credovi.schema import metadata, schema
-from credovi.util.sqlalchemy import comment_on_table_elements
+from credovi.util.sqlalchemy import comment_on_table_elements, create_partition_insert_trigger
 
 CURRENT_BIOMOL_MAX      = app.config.get('schema','current_biomol_max')
 CONTACTS_PARTITION_SIZE = app.config.get('schema','contacts_partition_size')
@@ -74,6 +75,7 @@ comments = {
 }
 
 comment_on_table_elements(contacts, comments)
+create_partition_insert_trigger(contacts, CONTACTS_PARTITION_SIZE)
 
 # create new paritions for every 5000 biomolecules
 partitions = range(0, CURRENT_BIOMOL_MAX+CONTACTS_PARTITION_SIZE, CONTACTS_PARTITION_SIZE)
@@ -103,8 +105,9 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
                     Column('is_aromatic', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                     Column('is_hydrophobic', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
                     Column('is_carbonyl', Boolean(create_constraint=False), DefaultClause('false'), nullable=False),
-                      CheckConstraint("biomolecule_id > {0} AND biomolecule_id <= {1}".format(part_bound_low, part_bound_high)),
-                      schema=schema)
+                    CheckConstraint("biomolecule_id > {0} AND biomolecule_id <= {1}".format(part_bound_low, part_bound_high)),
+                    postgresql_inherits=quoted_name(contacts.fullname, False),  # new SQLAlchemy 1.0 feature
+                    schema=schema)
 
     Index('idx_{0}_biomolecule_id'.format(tablename), partition.c.biomolecule_id)
     #Index('idx_{0}_atom_bgn_id'.format(tablename), partition.c.atom_bgn_id)
@@ -113,18 +116,19 @@ for part_bound_low, part_bound_high in zip(partitions[:-1], partitions[1:]):
     # neccessary to drop tables with sqlalchemy
     partition.add_is_dependent_on(contacts)
 
-    # add inheritance from master table through DDL
-    listen(partition, "after_create",
-           DDL("ALTER TABLE %(fullname)s INHERIT {schema}.contacts".format(schema=schema)))
-
-    # DDL to create an insert rule on the master table
-    listen(metadata, "after_create",
-           DDL(CONTACTS_INS_RULE_DDL.format(schema=schema, table=tablename,
-                                            rule=rulename, part_bound_low=part_bound_low,
-                                            part_bound_high=part_bound_high)))
-
-    # drop the rules on the master table because they depend on the partitions
-    listen(partition, "before_drop",
-       DDL("DROP RULE IF EXISTS {rule} ON {schema}.contacts".format(schema=schema, rule=rulename)))
+    ## DEPRECATED: TRIGGERS, NOT RULES
+    # # add inheritance from master table through DDL
+    # listen(partition, "after_create",
+    #        DDL("ALTER TABLE %(fullname)s INHERIT {schema}.contacts".format(schema=schema)))
+    #
+    # # DDL to create an insert rule on the master table
+    # listen(metadata, "after_create",
+    #        DDL(CONTACTS_INS_RULE_DDL.format(schema=schema, table=tablename,
+    #                                         rule=rulename, part_bound_low=part_bound_low,
+    #                                         part_bound_high=part_bound_high)))
+    #
+    # # drop the rules on the master table because they depend on the partitions
+    # listen(partition, "before_drop",
+    #    DDL("DROP RULE IF EXISTS {rule} ON {schema}.contacts".format(schema=schema, rule=rulename)))
 
     comment_on_table_elements(partition, comments)
